@@ -107,8 +107,9 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
             to_lower(header->header_value, strlen(header->header_value));
             return TEST_ERROR_NONE;
 		}
+        return TEST_ERROR_PARSE_FAILED;
 	}
-	return TEST_ERROR_PARSE_FAILED;
+	return TEST_ERROR_PARSE_PARTIAL;
 }
 
 /**
@@ -186,7 +187,7 @@ test_error_code_t serialize_http_response(char **msg, size_t *len, const char *p
     size_t last_modified_len = last_modified == NULL ? 0 : strlen(last_modified);
 
     size_t prepopulated_len = strlen(prepopulated_headers);
-    size_t msg_len = prepopulated_len + strlen(HTTP_VER)
+   size_t msg_len = prepopulated_len + strlen(HTTP_VER) + 1
                      + strlen(CONNECTION) + strlen(CONNECTION_VAL) + strlen(CRLF)
                      + strlen(SERVER) + strlen(SERVER_VAL) + strlen(CRLF)
                      + strlen(DATE) + date_len + strlen(CRLF);
@@ -211,6 +212,9 @@ test_error_code_t serialize_http_response(char **msg, size_t *len, const char *p
     // Prepopulated
     memcpy(*msg + cur_len, HTTP_VER, strlen(HTTP_VER));
     cur_len += strlen(HTTP_VER);
+
+    memcpy(*msg + cur_len, " ", 1);
+    cur_len += 1;
 
     memcpy(*msg + cur_len, prepopulated_headers, prepopulated_len);
     cur_len += prepopulated_len;
