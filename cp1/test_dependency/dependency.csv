@@ -1,9 +1,9 @@
 index.html,
-index1.html:index.html
-index2.html:index.html
-index3.html:index.html
-index4.html:index.html
-index5.html:index.html
+index1.html,index.html
+index2.html,index.html
+index3.html,index.html
+index4.html,index.html
+index5.html,index.html
 image(1).png,index1.html
 image(2).png,index1.html
 image(3).png,index1.html
