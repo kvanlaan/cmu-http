@@ -1,9 +1,10 @@
 index.html,
-index1.html,index.html
-index2.html,index.html
-index3.html,index.html
-index4.html,index.html
-index5.html,index.html
+htmlinclude.js,index.html
+index1.html,htmlinclude.js
+index2.html,htmlinclude.js
+index3.html,htmlinclude.js
+index4.html,htmlinclude.js
+index5.html,htmlinclude.js
 image(1).png,index1.html
 image(2).png,index1.html
 image(3).png,index1.html
