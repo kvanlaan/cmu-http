@@ -5,14 +5,13 @@ This repository contains the starter code for ***CMU 15-441/641 Networking and t
 ## 1. Files
 - `Makefile`: Contains rules for `make`.
 - `README.md`: Current document.
-- `cp1`: CP1 scripts and examples.
-- `cp2`: CP2 scripts and examples.
+- `cp1`: CP1 scripts and examples but also useful for CP2.
 - `backend/`: The codes we provide for you.
     - `backend/parse_http.c`: The HTTP Request / Response parser.
     - `backend/responses.c`: Predefined HTTP responses.
     - `backend/lexer.l`: Lex/Yacc related logic.
     - `backend/parser.y`
-- `include/parse_http.h`
+- `include/`: some header files.
 - `src/`: You need to develop here.
 
 ## 2. Environment Setup

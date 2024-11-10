@@ -67,7 +67,14 @@ int yyparse();
 void set_parsing_options(char *buf, size_t i, Request *request);
 void yyrestart();
 
-void trim_whitespace(char *str, size_t str_len);
+/**
+ * @brief Remove starting and trailing whitespaces from a string. Overwrites
+ *	  the input string in place.
+ *
+ * @param[in] input The string to process
+ * @param[in] length The length to process
+ */
+void trim_whitespace(char *input, size_t length);
 void to_lower(char *str, size_t str_len);
 int populate_header(char *msg, char *field, const size_t field_len, char *val, const size_t val_len);
 

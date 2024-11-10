@@ -8,33 +8,51 @@
  * No part of the HTTP project may be copied and/or distributed
  * without the express permission of the 15-441/641 course staff.
  */
+#include <string.h>
 #include "parse_http.h"
 
-void trim_whitespace(char *str, size_t str_len) {
-    size_t i = 0;
-
-    while (isspace(str[i]) && str[i] != '\0') {
-        i++;
-    }
-    // First non whitespace char
-    size_t firstCharInd = i;
-
-    i = str_len - 1;
-    while (isspace(str[i])) {
-        i--;
-    }
-    // First whitespace char
-    size_t lastCharInd = i;
-
-    if (firstCharInd == 0) {
+void trim_whitespace(char *input, size_t length) {
+    if (input == NULL) {
+        fprintf(stderr, "Error: Input string is NULL.\n");
         return;
     }
 
-    size_t len = lastCharInd - firstCharInd + 1;
-    for (int startInd = 0, curCharInd = firstCharInd; startInd < len; startInd++, curCharInd++) {
-        str[startInd] = str[curCharInd];
+    // Find the index of the first non-whitespace character from the beginning
+    size_t start = 0;
+    while (start < length && isspace(input[start])) {
+        start++;
     }
-    str[len] = '\0';
+
+    // Find the index of the first non-whitespace character from the end
+    size_t end = length - 1;
+    while (end > start && isspace(input[end])) {
+        end--;
+    }
+
+    // Calculate the length of the trimmed string
+    size_t trimmed_length = (end >= start) ? (end - start + 1) : 0;
+
+    // Allocate memory for the trimmed string
+    char *result = (char *)malloc((trimmed_length + 1) * sizeof(char));
+    if (result == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed.\n");
+        return;
+    }
+
+    // Copy the trimmed portion of the input string to the result
+    strncpy(result, input + start, trimmed_length);
+
+    // Add the null terminator at the end
+    result[trimmed_length] = '\0';
+
+    // Copy the trimmed string back.
+    // Note: there should not be another null temrinator in the string.
+    // Be careful about how strcpy() works: https://linux.die.net/man/3/strcpy
+    strcpy(input, result);
+    // Make sure to free the temporary string.
+    free(result);
+
+    return;
 }
 
 void to_lower(char *str, size_t str_len) {
@@ -55,6 +73,8 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
 	int i = 0, state;
 	size_t offset = 0;
 	char ch;
+	// Safe to assume that every valid request has header smaller than
+	// 8192 bytes. This buf does not hold body content.
 	char buf[8192];
 	memset(buf, 0, 8192);
 
@@ -91,23 +111,25 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
 
     //Valid End State
 	if (state == STATE_CRLFCRLF) {
-        request->header_count = 0;
-        request->status_header_size = 0;
-        request->allocated_headers = 15;
-        request->headers = (Request_header *) malloc(sizeof(Request_header) * request->allocated_headers);
-        set_parsing_options(buf, i, request);
+		request->header_count = 0;
+		request->status_header_size = 0;
+		request->allocated_headers = 15;
+		request->headers = (Request_header *) malloc(sizeof(Request_header) * request->allocated_headers);
+		set_parsing_options(buf, i, request);
 
-        yyrestart(NULL);
+		yyrestart(NULL);
 		if (yyparse() == SUCCESS) {
-            request->valid = true;
-            Request_header *header = &request->headers[request->header_count];
-            trim_whitespace(header->header_name, strlen(header->header_name));
-            to_lower(header->header_name, strlen(header->header_name));
-            trim_whitespace(header->header_value, strlen(header->header_value));
-            to_lower(header->header_value, strlen(header->header_value));
-            return TEST_ERROR_NONE;
+		    request->valid = true;
+		    for (int i = 0; i < request->header_count; ++i) {
+			    Request_header *header = &request->headers[i];
+			    trim_whitespace(header->header_name, strlen(header->header_name));
+			    to_lower(header->header_name, strlen(header->header_name));
+			    trim_whitespace(header->header_value, strlen(header->header_value));
+			    to_lower(header->header_value, strlen(header->header_value));
+		    }
+		    return TEST_ERROR_NONE;
 		}
-        return TEST_ERROR_PARSE_FAILED;
+		return TEST_ERROR_PARSE_FAILED;
 	}
 	return TEST_ERROR_PARSE_PARTIAL;
 }
