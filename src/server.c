@@ -16,7 +16,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/types.h>
-#include <sys/stat.h>
+#include <sys/stat.h> 
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <dirent.h>
@@ -24,18 +24,129 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include "parse_http.h"
 #include "ports.h"
+#include <poll.h>
 
 #define BUF_SIZE 8192
 // Closes a client's connection if they have not sent a valid request within
 // CONNECTION_TIMEOUT seconds.
 #define CONNECTION_TIMEOUT 50
 
-int main(int argc, char *argv[]) {
+#define MAX_CONCURRENT_CONNS 100
+
+#define HOSTLEN 256
+#define SERVLEN 8
+
+#define DEFAULT_TIMEOUT 3000
+
+typedef struct
+{
+    struct sockaddr_in addr; // Socket address
+    socklen_t addrlen;       // Socket address length
+    int connfd;              // Client connection file descriptor
+    char host[HOSTLEN];      // Client host
+    char serv[SERVLEN];      // Client service (port)
+} client_info;
+
+// setupsocket
+// returns server_fd to poll for new connections
+// returns -1 on error
+static int setup_socket()
+{
+    int server_fd = 0;
+    if ((server_fd = socket(AF_INET6, SOCK_STREAM, 0)) == 0)
+    {
+        fprintf(stderr, "socket failed\n");
+        return -1;
+    }
+
+    int optval_pos = 1;
+
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &optval_pos, sizeof(optval_pos)))
+    {
+        fprintf(stderr, "setsockopt reuse failed\n");
+        close(server_fd);
+        return -1;
+    }
+
+    // option must be passed as pointer
+    int optval_neg = 0;
+    if (setsockopt(server_fd, IPPROTO_IPV6, IPV6_V6ONLY, &optval_neg, sizeof(optval_neg)) < 0)
+    {
+        fprintf(stderr, "setsockopt extend ipv, failed\n");
+        if (close(server_fd) < 0)
+        {
+            fprintf(stderr, "fd socket not properly closed:\n");
+        }
+        return -1;
+    }
+
+    // // populating addresses
+    // struct addrinfo hints, *listp, *p;
+
+    struct sockaddr_in address;
+
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = inet_addr("127.0.0.1"); // Bind to localhost
+    address.sin_port = htons(8080);
+
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) != 0)
+    {
+        fprintf(stderr, "bind error\n");
+        if (close(server_fd) < 0)
+        {
+            fprintf(stderr, "fd socket not properly closed\n");
+        }
+        return -1;
+    }
+}
+
+static struct pollfd *init_poll_list(int server_fd)
+{
+    struct pollfd poll_list[MAX_CONCURRENT_CONNS];
+
+    for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
+    {
+        poll_list[i].fd = -1;
+        if (i == 0)
+        {
+            poll_list[0].fd = server_fd;
+        }
+        poll_list[i].events = POLLIN;
+    }
+    return poll_list;
+}
+
+static int add_new_connection(struct pollfd *poll_list, int server_fd)
+{
+
+    struct sockaddr_in client_address;
+    int client_fd = accept(server_fd, (struct sockaddr *)&client_address, sizeof(client_address));
+    if (client_fd < 0)
+    {
+        fprintf(stderr, "accept failed\n");
+        return -1;
+    }
+
+    for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
+    {
+        if (poll_list[i].fd == -1)
+        {
+            poll_list[i].fd = client_fd;
+            break;
+        }
+    }
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
     /* Validate and parse args */
-    if (argc != 2) {
+    if (argc != 2)
+    {
         fprintf(stderr, "usage: %s <www-folder>\n", argv[0]);
         return EXIT_FAILURE;
     }
@@ -43,12 +154,55 @@ int main(int argc, char *argv[]) {
     char *www_folder = argv[1];
 
     DIR *www_dir = opendir(www_folder);
-    if (www_dir == NULL) {
+    if (www_dir == NULL)
+    {
         fprintf(stderr, "Unable to open www folder %s.\n", www_folder);
         return EXIT_FAILURE;
     }
+
     closedir(www_dir);
 
     /* CP1: Set up sockets and read the buf */
-    return EXIT_SUCCESS;
+    int server_fd = setup_socket();
+    if (server_fd == -1)
+    {
+        return EXIT_FAILURE;
+    }
+
+    struct pollfd *poll_list = init_poll_list(server_fd);
+
+    while (1)
+    {
+        int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, DEFAULT_TIMEOUT);
+
+        if (poll_ready == 0)
+        {
+            printf("No poll events, repolling\n");
+            continue;
+        }
+        else if (poll_ready == -1)
+        {
+            fprintf(stderr, "poll threw error\n");
+            return EXIT_FAILURE;
+        }
+
+        for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
+        {
+            struct pollfd poll_list_entry = poll_list[i];
+
+            int poll_event_returned = poll_list_entry.revents & POLLIN;
+            if (poll_event_returned != 0)
+            {
+                if (poll_list_entry.fd == server_fd)
+                {
+                    add_new_connection(poll_list, server_fd);
+                    continue;
+                }
+                else
+                {
+                    // consume data
+                }
+            }
+        }
+    }
 }
