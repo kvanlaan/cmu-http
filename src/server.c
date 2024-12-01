@@ -16,7 +16,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <sys/types.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <dirent.h>
@@ -57,7 +57,7 @@ typedef struct
 static int setup_socket()
 {
     int server_fd = 0;
-    if ((server_fd = socket(AF_INET6, SOCK_STREAM, 0)) == 0)
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
         fprintf(stderr, "socket failed\n");
         return -1;
@@ -72,21 +72,6 @@ static int setup_socket()
         return -1;
     }
 
-    // option must be passed as pointer
-    int optval_neg = 0;
-    if (setsockopt(server_fd, IPPROTO_IPV6, IPV6_V6ONLY, &optval_neg, sizeof(optval_neg)) < 0)
-    {
-        fprintf(stderr, "setsockopt extend ipv, failed\n");
-        if (close(server_fd) < 0)
-        {
-            fprintf(stderr, "fd socket not properly closed:\n");
-        }
-        return -1;
-    }
-
-    // // populating addresses
-    // struct addrinfo hints, *listp, *p;
-
     struct sockaddr_in address;
 
     address.sin_family = AF_INET;
@@ -95,10 +80,10 @@ static int setup_socket()
 
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) != 0)
     {
-        fprintf(stderr, "bind error\n");
+        fprintf(stderr, "bind failed: %s\n", strerror(errno));
         if (close(server_fd) < 0)
         {
-            fprintf(stderr, "fd socket not properly closed\n");
+            fprintf(stderr, "fd socket not properly closed %s\n", strerror(errno));
         }
         return -1;
     }
@@ -107,8 +92,12 @@ static int setup_socket()
 
 static struct pollfd *init_poll_list(int server_fd)
 {
-    struct pollfd poll_list[MAX_CONCURRENT_CONNS];
-
+    struct pollfd *poll_list = malloc(MAX_CONCURRENT_CONNS * sizeof(struct pollfd));
+    if (poll_list == NULL)
+    {
+        fprintf(stderr, "poll_list malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
     for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
     {
         poll_list[i].fd = -1;
@@ -123,13 +112,12 @@ static struct pollfd *init_poll_list(int server_fd)
 
 static int add_new_connection(struct pollfd *poll_list, int server_fd)
 {
-
     struct sockaddr_in client_address;
     socklen_t client_addr_len = sizeof(client_address);
     int client_fd = accept(server_fd, (struct sockaddr *)&client_address, &client_addr_len);
     if (client_fd < 0)
     {
-        fprintf(stderr, "accept failed\n");
+        fprintf(stderr, "accept failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -140,7 +128,6 @@ static int add_new_connection(struct pollfd *poll_list, int server_fd)
             poll_list[i].fd = client_fd;
             break;
         }
-
     }
     return 0;
 }
@@ -173,6 +160,10 @@ int main(int argc, char *argv[])
     }
 
     struct pollfd *poll_list = init_poll_list(server_fd);
+    if (poll_list == NULL)
+    {
+        return EXIT_FAILURE;
+    }
 
     while (1)
     {
@@ -185,7 +176,7 @@ int main(int argc, char *argv[])
         }
         else if (poll_ready == -1)
         {
-            fprintf(stderr, "poll threw error\n");
+            fprintf(stderr, "poll threw error: %s\n", strerror(errno));
             return EXIT_FAILURE;
         }
 
