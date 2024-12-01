@@ -87,7 +87,7 @@ static int setup_socket()
         }
         return -1;
     }
-    
+
     if (listen(server_fd, MAX_CONCURRENT_CONNS) != 0)
     {
         fprintf(stderr, "listen failed: %s\n", strerror(errno));
@@ -98,7 +98,7 @@ static int setup_socket()
         }
         return -1;
     }
-    
+
     return server_fd;
 }
 
@@ -167,24 +167,25 @@ int main(int argc, char *argv[])
     printf("setting up socket.. \n");
     /* CP1: Set up sockets and read the buf */
     int server_fd = setup_socket();
-                
+
     if (server_fd == -1)
     {
-                fprintf(stderr, "setup socket failed: %s\n", strerror(errno));
+        fprintf(stderr, "ERR setup socket failed: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
     struct pollfd *poll_list = init_poll_list(server_fd);
     if (poll_list == NULL)
     {
-        fprintf(stderr, "init_poll_list: %s\n", strerror(errno));
-
+        fprintf(stderr, "ERR init_poll_list failed: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
     while (1)
     {
-        int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, -1);
+        // to-do: determine appropriate folling timeout
+        int timeout = DEFAULT_TIMEOUT;
+        int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, timeout);
 
         if (poll_ready == 0)
         {
@@ -204,7 +205,7 @@ int main(int argc, char *argv[])
             int poll_event_returned = poll_list_entry.revents & POLLIN;
             if (poll_event_returned != 0)
             {
-            printf("real event...\n");
+                printf("real event...\n");
                 if (poll_list_entry.fd == server_fd)
                 {
                     add_new_connection(poll_list, server_fd);
