@@ -75,9 +75,9 @@ static int setup_socket()
     struct sockaddr_in address;
 
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = inet_addr("127.0.0.1"); // Bind to localhost
+    address.sin_addr.s_addr = inet_addr("0.0.0.0"); // DON't USE 127..., restricts external clients
     address.sin_port = htons(HTTP_PORT);
-
+    ;
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) != 0)
     {
         fprintf(stderr, "bind failed: %s\n", strerror(errno));
@@ -87,7 +87,19 @@ static int setup_socket()
         }
         return -1;
     }
-    return 0;
+    
+    if (listen(server_fd, MAX_CONCURRENT_CONNS) != 0)
+    {
+        fprintf(stderr, "listen failed: %s\n", strerror(errno));
+        // pull out this close method
+        if (close(server_fd) < 0)
+        {
+            fprintf(stderr, "fd socket not properly closed %s\n", strerror(errno));
+        }
+        return -1;
+    }
+    
+    return server_fd;
 }
 
 static struct pollfd *init_poll_list(int server_fd)
@@ -104,6 +116,7 @@ static struct pollfd *init_poll_list(int server_fd)
         if (i == 0)
         {
             poll_list[0].fd = server_fd;
+            printf("server_fd: %d\n", server_fd);
         }
         poll_list[i].events = POLLIN;
     }
@@ -151,23 +164,27 @@ int main(int argc, char *argv[])
     }
 
     closedir(www_dir);
-
+    printf("setting up socket.. \n");
     /* CP1: Set up sockets and read the buf */
     int server_fd = setup_socket();
+                
     if (server_fd == -1)
     {
+                fprintf(stderr, "setup socket failed: %s\n", strerror(errno));
         return EXIT_FAILURE;
     }
 
     struct pollfd *poll_list = init_poll_list(server_fd);
     if (poll_list == NULL)
     {
+        fprintf(stderr, "init_poll_list: %s\n", strerror(errno));
+
         return EXIT_FAILURE;
     }
 
     while (1)
     {
-        int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, DEFAULT_TIMEOUT);
+        int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, -1);
 
         if (poll_ready == 0)
         {
@@ -187,13 +204,16 @@ int main(int argc, char *argv[])
             int poll_event_returned = poll_list_entry.revents & POLLIN;
             if (poll_event_returned != 0)
             {
+            printf("real event...\n");
                 if (poll_list_entry.fd == server_fd)
                 {
                     add_new_connection(poll_list, server_fd);
+                    printf("Added new conncetion\n");
                     continue;
                 }
                 else
                 {
+                    printf("client conn\n");
                     // consume data
                 }
             }
