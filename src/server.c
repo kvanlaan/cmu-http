@@ -102,6 +102,7 @@ static int setup_socket()
         }
         return -1;
     }
+    return 0;
 }
 
 static struct pollfd *init_poll_list(int server_fd)
@@ -124,7 +125,8 @@ static int add_new_connection(struct pollfd *poll_list, int server_fd)
 {
 
     struct sockaddr_in client_address;
-    int client_fd = accept(server_fd, (struct sockaddr *)&client_address, sizeof(client_address));
+    socklen_t client_addr_len = sizeof(client_address);
+    int client_fd = accept(server_fd, (struct sockaddr *)&client_address, &client_addr_len);
     if (client_fd < 0)
     {
         fprintf(stderr, "accept failed\n");
@@ -138,6 +140,7 @@ static int add_new_connection(struct pollfd *poll_list, int server_fd)
             poll_list[i].fd = client_fd;
             break;
         }
+
     }
     return 0;
 }
