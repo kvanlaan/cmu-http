@@ -102,6 +102,10 @@ static int setup_socket()
     return server_fd;
 }
 
+
+// init_poll_list
+// mallocs poll_list set to length of max connections
+// returns pointer to malloced poll_list
 static struct pollfd *init_poll_list(int server_fd)
 {
     struct pollfd *poll_list = malloc(MAX_CONCURRENT_CONNS * sizeof(struct pollfd));
