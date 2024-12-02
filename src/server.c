@@ -216,6 +216,7 @@ int main(int argc, char *argv[])
       int shutdown = (len == 0) || ((revents & POLLHUP) > 0);
       if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
         printf("closing connection with fd %d\n", client_info.connfd);
+        close(pollfd->fd);
         pollfd->fd = -1;
         continue;
       }
@@ -223,7 +224,6 @@ int main(int argc, char *argv[])
       Request request;
       err = parse_http_request(buf, len, &request);
       if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed %d bytes\n", len); continue;  }
-      // TODO send 503
       if(err == TEST_ERROR_PARSE_FAILED) {
         printf("parsing failed, sending HTTP 400\n");
         // shift the socket recv buffer

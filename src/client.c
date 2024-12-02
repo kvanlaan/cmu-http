@@ -48,5 +48,38 @@ int main(int argc, char *argv[]) {
     }
 
     /* CP1: Send out a HTTP request, waiting for the response */
-    
+    // const int header_count = 1;
+    // Request_header headers[header_count];
+    // Request_header header_0;
+    // memcpy(header_0.header_name, "Host", 5);
+    // memcpy(header_0.header_name, "It's me", 8);
+    // headers[0] = header_0;
+    Request request = {
+      "1.1",
+      "GET",
+      "/index2.html",
+      "127.0.0.1",
+      // headers,
+      // header_count,
+      // header_count,
+      NULL,
+      0,
+      0,
+      0,
+      NULL,
+      0
+    };
+    char buf[8192];
+    size_t size;
+    int err = serialize_http_request(buf, &size, &request);
+    if(err != TEST_ERROR_NONE) {
+      printf("error serializing request\n");
+    }
+    buf[size] = '\0';
+    printf("sending request:\n%s\n", buf);
+    err = send(sockfd, buf, size, 0);
+    if(err < 0) {
+      printf("error sending msg\n");
+    }
+    // parse_http_response should be implemeted in CP2
 }
