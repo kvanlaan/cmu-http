@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Parsed IP address of the server: %X\n", htonl(sin.sin_addr.s_addr));
 
     if(connect(sockfd, (struct sockaddr *)&sin, sizeof(sin)) < 0){
+        printf("error on connect\n");
         return TEST_ERROR_HTTP_CONNECT_FAILED;
     }
 
