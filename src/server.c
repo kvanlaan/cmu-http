@@ -254,15 +254,12 @@ int main(int argc, char *argv[])
               printf("buffer size is %d\n", size);
             }
 
-      // size_t resp_len;
-      // char *resp = process_http_request(&request, &resp_len);
-      // char *resp = "hello from Raphael";
-      // size_t resp_len = strlen(resp);
-      // err = send(client_info.connfd, resp, resp_len, 0);
-      // if(err < 0) {
-      //   printf("could not send: %s\n", strerror(errno));
-      // }
-      // exit(1);
+      size_t resp_len;
+      char *resp = process_http_request(&request, &resp_len);
+      err = send(client_info.connfd, resp, resp_len, 0);
+      if(err < 0) {
+        printf("could not send HTTP response: %s\n", strerror(errno));
+      }
     }
 
   }
