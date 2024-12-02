@@ -45,14 +45,14 @@
 
 #define DEFAULT_TIMEOUT 3000
 
-typedef struct client_info
+struct client_info
 {
     struct sockaddr_in addr; // Socket address
     socklen_t addrlen;       // Socket address length
     int connfd;              // Client connection file descriptor
     char host[HOSTLEN];      // Client host
     char serv[SERVLEN];      // Client service (port)
-} client_info;
+};
 
 // setupsocket
 // returns server_fd to poll for new connections
@@ -216,12 +216,31 @@ int main(int argc, char *argv[])
 
       // new connection
       printf("received connection!\n");
-      struct sockaddr other_sockaddr;
-      socklen_t other_socklen;
-      int other_sockfd = accept(sockfd, &other_sockaddr, &other_socklen);
-      size_t i;
-      for(size_t i = 0; (i < MAX_CONCURRENT_CONNS) && (poll_list[i].fd != -1);
+      struct sockaddr_in client_addr;
+      socklen_t client_addrlen = sizeof(client_addr);
+      int client_sockfd = accept(sockfd, (struct sockaddr*)&client_addr,
+          &client_addrlen);
+      if(client_sockfd < 0) {
+        // skip
+        printf("coult not accept new connection\n");
+        continue;
+      }
+      size_t i = 0;
+      for(; (i < MAX_CONCURRENT_CONNS) && (poll_list[i].fd >= 0);
           i++) {}
+      if(i == MAX_CONCURRENT_CONNS) {
+        // send 503
+        continue;
+      }
+
+      // new connection at location i in list
+      struct pollfd *client_pollfd = &(poll_list[i]);
+      client_pollfd->fd = client_sockfd;
+      client_pollfd->events = client_pollfd->revents = 0;
+      struct client_info *client_info = &(client_info_list[i]);
+      client_info->addr = client_addr;
+      client_info->addrlen = client_addrlen;
+      client_info->connfd = client_sockfd;
     } else
       ERR("weird server socket file state\n", (my_pollfd->revents != 0))
     
