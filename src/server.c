@@ -146,6 +146,41 @@ static int add_new_connection(struct pollfd *poll_list, int server_fd)
     return 0;
 }
 
+int new_connection(int sockfd, struct pollfd *poll_list,
+    struct client_info *client_info_list) {
+  printf("received connection!\n");
+  struct sockaddr_in client_addr;
+  socklen_t client_addrlen = sizeof(client_addr);
+  int client_sockfd = accept(sockfd, (struct sockaddr*)&client_addr,
+      &client_addrlen);
+  if(client_sockfd < 0) {
+    // skip
+    printf("coult not accept new connection\n");
+    return -1;
+  }
+  size_t i = 0;
+  for(; (i < MAX_CONCURRENT_CONNS) && (poll_list[i].fd >= 0);
+      i++) {}
+  if(i == MAX_CONCURRENT_CONNS) {
+    // send 503
+    printf("new connection, but too many existing -- sending 503\n");
+    return -1;
+  }
+
+  // new connection at location i in list
+  struct pollfd *client_pollfd = &(poll_list[i]);
+  client_pollfd->fd = client_sockfd;
+  client_pollfd->events = client_pollfd->revents = 0;
+  struct client_info *client_info = &(client_info_list[i]);
+  client_info->addr = client_addr;
+  client_info->addrlen = client_addrlen;
+  client_info->connfd = client_sockfd;
+
+  printf("new connection successfully set up\n");
+
+  return 0;
+}
+
 
 #define ERR(msg, __VA_ARGS__) if(__VA_ARGS__) {\
   fprintf(stderr, msg);\
@@ -190,13 +225,15 @@ int main(int argc, char *argv[])
 
   err = bind(sockfd, (struct sockaddr*)&sin, sizeof(sin));
   ERR("couldn't bind\n", (err < 0));
-  listen(sockfd, BUF_SIZE);
+  listen(sockfd, 100000);
 
   // validity in the lists is based on whether the corresponding entry in
   //  poll_list has pollfd != -1
   struct pollfd poll_list[MAX_CONCURRENT_CONNS + 1];  // extra is for server
-  for(size_t i = 0; i < MAX_CONCURRENT_CONNS; i++)
+  for(size_t i = 0; i < MAX_CONCURRENT_CONNS; i++) {
     poll_list[i].fd = -1;
+    poll_list[i].events = POLLIN;
+  }
   struct client_info client_info_list[MAX_CONCURRENT_CONNS];
 
   struct pollfd *my_pollfd = &(poll_list[MAX_CONCURRENT_CONNS]);
@@ -210,79 +247,49 @@ int main(int argc, char *argv[])
     if(n_ready == 0)
       continue;
 
-    if(my_pollfd->revents == POLLIN) {
+    if(my_pollfd->revents & POLLIN) {
       n_ready--;
+      // I'm hoping poll() will reset this if there are multiple connections
+      // pending
       my_pollfd->revents = 0;
 
-      // new connection
-      printf("received connection!\n");
-      struct sockaddr_in client_addr;
-      socklen_t client_addrlen = sizeof(client_addr);
-      int client_sockfd = accept(sockfd, (struct sockaddr*)&client_addr,
-          &client_addrlen);
-      if(client_sockfd < 0) {
-        // skip
-        printf("coult not accept new connection\n");
+      new_connection(sockfd, poll_list, client_info_list);
+    } else {
+      printf("weird server socket file state\n");
+      // ERR("weird server socket file state\n", (my_pollfd->revents != 0))
+    }
+    
+    
+    for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
+    {
+      struct pollfd pollfd = poll_list[i];
+      if((pollfd.revents & POLLIN) == 0)
+        continue;
+      struct client_info client_info = client_info_list[i];
+      char buf[BUF_SIZE];
+      int len = recv(client_info.connfd, buf, BUF_SIZE,
+                     MSG_DONTWAIT | MSG_PEEK);
+      ERR("couldn't receive data\n", (len < 0));
+      Request request;
+      err = parse_http_request(buf, len, &request);
+      if(err == TEST_ERROR_PARSE_PARTIAL) {
+        printf("parsing partial'ed\n");
+        continue;  // socket recv buffer is not ready
+      }
+      if(err == TEST_ERROR_PARSE_FAILED) {
+        printf("parsing failed\n");
+        recv(request.status_header_size, buf, len,
+                       MSG_DONTWAIT);
         continue;
       }
-      size_t i = 0;
-      for(; (i < MAX_CONCURRENT_CONNS) && (poll_list[i].fd >= 0);
-          i++) {}
-      if(i == MAX_CONCURRENT_CONNS) {
-        // send 503
-        continue;
-      }
-
-      // new connection at location i in list
-      struct pollfd *client_pollfd = &(poll_list[i]);
-      client_pollfd->fd = client_sockfd;
-      client_pollfd->events = client_pollfd->revents = 0;
-      struct client_info *client_info = &(client_info_list[i]);
-      client_info->addr = client_addr;
-      client_info->addrlen = client_addrlen;
-      client_info->connfd = client_sockfd;
-    } else
-      ERR("weird server socket file state\n", (my_pollfd->revents != 0))
-    
-    
-
-    
-
-      // to-do: determine appropriate folling timeout
-      // int timeout = DEFAULT_TIMEOUT;
-      // int poll_ready = poll(poll_list, MAX_CONCURRENT_CONNS, timeout);
-
-      // if (poll_ready == 0)
-      // {
-      //     printf("No poll events, repolling\n");
-      //     continue;
+      printf("received HTTP request from %s!\n", request.host);
+      // if(err != TEST_ERROR_NONE) {
+      //   printf("weird parse error code\n");
+      //   continue;
       // }
-      // else if (poll_ready == -1)
-      // {
-      //     fprintf(stderr, "poll threw error: %s\n", strerror(errno));
-      //     return EXIT_FAILURE;
-      // }
+      recv(request.status_header_size, buf, len,
+                     MSG_DONTWAIT);
+    }
 
-      // for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
-      // {
-      //     struct pollfd poll_list_entry = poll_list[i];
-
-      //     int poll_event_returned = poll_list_entry.revents & POLLIN;
-      //     if (poll_event_returned != 0)
-      //     {
-      //         printf("real event...\n");
-      //         if (poll_list_entry.fd == server_fd)
-      //         {
-      //             add_new_connection(poll_list, server_fd);
-      //             printf("Added new conncetion\n");
-      //             continue;
-      //         }
-      //         else
-      //         {
-      //             printf("client conn\n");
-      //             // consume data
-      //         }
-      //     }
-      // }
   }
 }
