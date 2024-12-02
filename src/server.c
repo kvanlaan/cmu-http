@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
       int no_method = ((strcmp(request.http_method, "GET") != 0)
               && (strcmp(request.http_method, "HEAD") != 0)
               && (strcmp(request.http_method, "POST") != 0));
-      if((err == TEST_ERROR_PARSE_FAILED) || wrong_version || no_method) {
+      if((err == TEST_ERROR_PARSE_FAILED)) { // || wrong_version || no_method) {
         printf("parsing failed, sending HTTP 400\n");
         // shift the socket recv buffer
         err = recv(client_info.connfd, buf, request.status_header_size, MSG_DONTWAIT);
@@ -262,26 +262,26 @@ int main(int argc, char *argv[])
         printf("could not send HTTP response: %s\n", strerror(errno));
       }
 
-      // check for connection: close
-      int to_close = 0;
-      for(size_t h = 0; h < request.header_count; h++) {
-        char *name = request.headers[h].header_name;
-        name[0] = tolower(name[0]);
-        // printf("header_name [%s]\n", request.headers[h].header_name);
-        if(strcmp(request.headers[h].header_name, "connection") != 0)
-          continue;
-        char *val = request.headers[h].header_value;
-        val[0] = tolower(val[0]);
-        // printf("header_value [%s]\n", val + strlen(val) - 5);
-        if((strlen(val) >= 5) && (strcmp(val + strlen(val) - 5, "close") == 0))
-          to_close = 1;
-      }
-      if(close) {
-        printf("closing connection with fd %d\n", client_info.connfd);
-        close(pollfd->fd);
-        pollfd->fd = -1;
-        continue;
-      }
+      // // check for connection: close
+      // int to_close = 0;
+      // for(size_t h = 0; h < request.header_count; h++) {
+      //   char *name = request.headers[h].header_name;
+      //   name[0] = tolower(name[0]);
+      //   // printf("header_name [%s]\n", request.headers[h].header_name);
+      //   if(strcmp(request.headers[h].header_name, "connection") != 0)
+      //     continue;
+      //   char *val = request.headers[h].header_value;
+      //   val[0] = tolower(val[0]);
+      //   // printf("header_value [%s]\n", val + strlen(val) - 5);
+      //   if((strlen(val) >= 5) && (strcmp(val + strlen(val) - 5, "close") == 0))
+      //     to_close = 1;
+      // }
+      // if(close) {
+      //   printf("closing connection with fd %d\n", client_info.connfd);
+      //   close(pollfd->fd);
+      //   pollfd->fd = -1;
+      //   continue;
+      // }
     }
 
   }
