@@ -36,7 +36,7 @@ extern char *CRLF, *CONNECTION, *CONNECTION_VAL, *SERVER, *SERVER_VAL,
     *DATE, *CONTENT_TYPE, *CONTENT_LENGTH, *ZERO, *LAST_MODIFIED, *HOST;
 
 /* Responses */
-extern char *HTTP_VER, *OK, *NOT_FOUND, *SERVICE_UNAVAILABLE, *BAD_REQUEST;
+extern char *HTTP_VER, *OK, *NOT_FOUND, *SERVICE_UNAVAILABLE, *INTERNAL_SERVER_ERROR, *BAD_REQUEST;
 
 /* MIME TYPES */
 extern char *HTML_EXT, *HTML_MIME, *CSS_EXT, *CSS_MIME, *PNG_EXT, *PNG_MIME,
@@ -116,4 +116,5 @@ test_error_code_t serialize_http_response(char **msg, size_t *len,
     const char *prepopulated_headers, char *content_type, char *content_length, 
     char *last_modified, size_t body_len, char *body);
 
+char *process_http_request(Request *request, size_t *len, char *base_folder);
 #endif

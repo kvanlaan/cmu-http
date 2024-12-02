@@ -40,6 +40,8 @@ char *HTTP_VER = "HTTP/1.1";
 char *OK = "200 OK\r\n";
 char *NOT_FOUND = "404 Not Found\r\n";
 char *SERVICE_UNAVAILABLE = "503 Service Unavailable\r\n";
+char *INTERNAL_SERVER_ERROR = "500 Internal Server Error\r\n";
+
 char *BAD_REQUEST = "400 Bad Request\r\n";
 
 /* MIME TYPES */

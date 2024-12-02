@@ -10,6 +10,8 @@
  */
 #include <string.h>
 #include "parse_http.h"
+#include <sys/stat.h>
+#include <unistd.h>
 
 void trim_whitespace(char *input, size_t length) {
     if (input == NULL) {
@@ -60,6 +62,85 @@ void to_lower(char *str, size_t str_len) {
         str[i] = tolower(str[i]);
     }
 }
+
+
+/**
+ * Wrapper for serializing an error HTTP response.
+ * @param pointer message
+ * @param response_type 
+ */
+char *serialize_http_response_wrapper(size_t *len, const char *response_type) {
+    char *resp_text;
+    serialize_http_response(&resp_text, len, response_type, NULL, NULL, NULL, 0, NULL);
+    return resp_text;
+}
+
+// get file size
+// @param char* file_path (path to resource)
+size_t get_file_size(char *file_path) {
+    struct stat st;
+    // to-do add error handling robustness
+    stat(file_path, &st);
+    return st.st_size;
+}
+
+
+/**
+* Given a char buffer returns the parsed request headers
+*/
+char *process_http_request(Request *request, size_t *len, char *base_folder) {
+    char *http_resource_path = request->http_uri;
+
+    // unexpected behavior in this method...
+    if (http_resource_path[0] != '/') {
+        printf("NO RESOURCE indicated \n");
+        return serialize_http_response_wrapper(len, BAD_REQUEST);
+    }
+
+
+
+
+    // concating base dir and file path
+    int path_len = strlen(base_folder)  + strlen(http_resource_path) + 1; 
+
+    char * resource_path = (char *)malloc(path_len);
+    strcpy(resource_path, base_folder);
+    strcat(resource_path, http_resource_path); 
+
+    if (access(resource_path, F_OK) != 0) {
+        printf("RESOURCE NOT FOUND\n");
+        return serialize_http_response_wrapper(len, NOT_FOUND);
+    }
+
+    FILE *resource_file = fopen(resource_path, "rb");
+    if (resource_file == NULL)  {
+        return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+    }
+
+    size_t resource_file_size = get_file_size(resource_path);
+
+    char *resource_file_content = malloc(resource_file_size);
+    if (resource_file_content == NULL) {
+        fclose(resource_file);
+        free(resource_path);
+        return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+    }
+
+    fread(resource_file_content, 1, resource_file_size, resource_file);
+    
+    char content_length_str[32];
+    sprintf(content_length_str, "%zu", resource_file_size);
+    
+    char *response;
+    serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
+
+    fclose(resource_file);
+    free(resource_file_content);
+    free(resource_path);
+
+    return response;
+}
+
 
 /**
 * Given a char buffer returns the parsed request headers

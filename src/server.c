@@ -111,12 +111,6 @@ int new_connection(int sockfd, struct pollfd *poll_list,
 }
 
 
-// assumes http request is valid
-// returns proper HTTP response
-char* process_http_request(Request *request, size_t *len) {
-  return NULL;
-}
-
 int main(int argc, char *argv[])
 {
   /* Validate and parse args */
@@ -255,7 +249,8 @@ int main(int argc, char *argv[])
             }
 
       size_t resp_len;
-      char *resp = process_http_request(&request, &resp_len);
+      printf("about to process\n");
+      char *resp = process_http_request(&request, &resp_len, www_folder);
       err = send(client_info.connfd, resp, resp_len, 0);
       if(err < 0) {
         printf("could not send HTTP response: %s\n", strerror(errno));
