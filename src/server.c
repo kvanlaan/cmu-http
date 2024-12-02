@@ -170,13 +170,15 @@ int new_connection(int sockfd, struct pollfd *poll_list,
   // new connection at location i in list
   struct pollfd *client_pollfd = &(poll_list[i]);
   client_pollfd->fd = client_sockfd;
-  client_pollfd->events = client_pollfd->revents = 0;
+  client_pollfd->events = POLLIN;
+  client_pollfd->revents = 0;
   struct client_info *client_info = &(client_info_list[i]);
   client_info->addr = client_addr;
   client_info->addrlen = client_addrlen;
   client_info->connfd = client_sockfd;
 
-  printf("new connection successfully set up\n");
+  char *ip = inet_ntoa(client_addr.sin_addr);
+  printf("new connection successfully set up from %s fd %d!\n", ip, client_sockfd);
 
   return 0;
 }
@@ -233,6 +235,7 @@ int main(int argc, char *argv[])
   for(size_t i = 0; i < MAX_CONCURRENT_CONNS; i++) {
     poll_list[i].fd = -1;
     poll_list[i].events = POLLIN;
+    poll_list[i].revents = 0;
   }
   struct client_info client_info_list[MAX_CONCURRENT_CONNS];
 
@@ -243,9 +246,11 @@ int main(int argc, char *argv[])
 
   while (1) {
     /* check for new connections */
-    int n_ready = poll(my_pollfd, 1, DEFAULT_TIMEOUT);
-    if(n_ready == 0)
-      continue;
+    int n_ready = poll(poll_list, MAX_CONCURRENT_CONNS + 1, DEFAULT_TIMEOUT);
+    if(n_ready == 0) {
+      // printf("nothing so far!\n");
+      printf("nothing so far %d\n", poll_list[0].fd);
+    }
 
     if(my_pollfd->revents & POLLIN) {
       n_ready--;
@@ -254,7 +259,7 @@ int main(int argc, char *argv[])
       my_pollfd->revents = 0;
 
       new_connection(sockfd, poll_list, client_info_list);
-    } else {
+    } else if(my_pollfd->revents != 0) {
       printf("weird server socket file state\n");
       // ERR("weird server socket file state\n", (my_pollfd->revents != 0))
     }
@@ -263,13 +268,22 @@ int main(int argc, char *argv[])
     for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
     {
       struct pollfd pollfd = poll_list[i];
+
       if((pollfd.revents & POLLIN) == 0)
         continue;
+
+      // pollfd.revents = 0;
       struct client_info client_info = client_info_list[i];
       char buf[BUF_SIZE];
+      printf("connfd is %d\n", client_info.connfd);
       int len = recv(client_info.connfd, buf, BUF_SIZE,
                      MSG_DONTWAIT | MSG_PEEK);
-      ERR("couldn't receive data\n", (len < 0));
+      if(len < 0) {
+        printf("couldn't receive data from %d: %s\n", client_info.connfd,
+            strerror(errno));
+        continue;
+      }
+      // ERR("couldn't receive data\n", (len < 0));
       Request request;
       err = parse_http_request(buf, len, &request);
       if(err == TEST_ERROR_PARSE_PARTIAL) {
