@@ -184,9 +184,20 @@ int new_connection(int sockfd, struct pollfd *poll_list,
 }
 
 
+// assumes http request is valid
+// returns proper HTTP response
+char* process_http_request(Request *request, size_t *len) {
+  return NULL;
+}
+
+
 #define ERR(msg, __VA_ARGS__) if(__VA_ARGS__) {\
   fprintf(stderr, msg);\
   exit(1);\
+}
+#define CHK(msg, __VA_ARGS__) if(__VA_ARGS__) {\
+  printf(msg);\
+  return -1;\
 }
 
 int main(int argc, char *argv[])
@@ -272,37 +283,55 @@ int main(int argc, char *argv[])
       if((pollfd.revents & POLLIN) == 0)
         continue;
 
-      // pollfd.revents = 0;
       struct client_info client_info = client_info_list[i];
       char buf[BUF_SIZE];
       printf("connfd is %d\n", client_info.connfd);
       int len = recv(client_info.connfd, buf, BUF_SIZE,
                      MSG_DONTWAIT | MSG_PEEK);
-      if(len < 0) {
-        printf("couldn't receive data from %d: %s\n", client_info.connfd,
-            strerror(errno));
-        continue;
-      }
-      // ERR("couldn't receive data\n", (len < 0));
+      if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info.connfd, strerror(errno)); continue; }
+
       Request request;
       err = parse_http_request(buf, len, &request);
-      if(err == TEST_ERROR_PARSE_PARTIAL) {
-        printf("parsing partial'ed\n");
-        continue;  // socket recv buffer is not ready
-      }
+      if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed\n"); continue;  }
+      // TODO send 503
       if(err == TEST_ERROR_PARSE_FAILED) {
-        printf("parsing failed\n");
-        recv(request.status_header_size, buf, len,
-                       MSG_DONTWAIT);
+        printf("parsing failed, sending HTTP 400\n");
+        // shift the socket recv buffer
+        err = recv(client_info.connfd, buf, request.status_header_size, MSG_DONTWAIT);
+        ERR("could not shift buffer\n", err < 0)
+        // send HTTP 400
+        char *msg;
+        size_t msg_len;
+        serialize_http_response(&msg, &msg_len, "400 Bad Request\n",
+          NULL, NULL, NULL, 0, NULL);
+        err = send(client_info.connfd, msg, msg_len, 0);
+        ERR("could not send HTTP 400\n", err < 0)
+        printf("send HTTP 400\n");
         continue;
       }
-      printf("received HTTP request from %s!\n", request.host);
-      // if(err != TEST_ERROR_NONE) {
-      //   printf("weird parse error code\n");
-      //   continue;
-      // }
-      recv(request.status_header_size, buf, len,
+      // if(err != TEST_ERROR_NONE) { printf("weird parse error code\n"); continue; }
+      
+      // shift the socket recv buffer
+      err = recv(client_info.connfd, buf, request.status_header_size,
                      MSG_DONTWAIT);
+      if(err < 0) {
+        printf("coulnd't shift buffer 2: %s\n", strerror(errno));
+      }
+      // ERR("couldn't shift buffer2\n", err < 0)
+      char buffer[BUF_SIZE];
+      size_t size;
+      serialize_http_request(buffer, &size, &request);
+      buffer[size] = '\0';
+      printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
+      printf("status_header_size is %d\n", request.status_header_size);
+      printf("buffer size is %d\n", size);
+
+      size_t resp_len;
+      char *resp = process_http_request(&request, &resp_len);
+      err = send(client_info.connfd, resp, resp_len, 0);
+      if(err < 0) {
+        printf("could not send: %s\n", strerror(errno));
+      }
     }
 
   }
