@@ -208,6 +208,7 @@ int main(int argc, char *argv[])
       if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info.connfd, strerror(errno)); continue; }
 
       int shutdown = (len == 0) || ((revents & POLLHUP) > 0);
+      
       if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
         printf("closing connection with fd %d\n", client_info.connfd);
         close(pollfd->fd);
@@ -218,7 +219,12 @@ int main(int argc, char *argv[])
       Request request;
       err = parse_http_request(buf, len, &request);
       if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed %d bytes\n", len); continue;  }
-      if(err == TEST_ERROR_PARSE_FAILED) {
+      printf("version: [%s], method: [%s]\n", request.http_version, request.http_method);
+      int wrong_version = (strcmp(request.http_version, "HTTP/1.1") != 0);
+      int no_method = ((strcmp(request.http_method, "GET") != 0)
+              && (strcmp(request.http_method, "HEAD") != 0)
+              && (strcmp(request.http_method, "POST") != 0));
+      if((err == TEST_ERROR_PARSE_FAILED) || wrong_version || no_method) {
         printf("parsing failed, sending HTTP 400\n");
         // shift the socket recv buffer
         err = recv(client_info.connfd, buf, request.status_header_size, MSG_DONTWAIT);
@@ -254,6 +260,27 @@ int main(int argc, char *argv[])
       err = send(client_info.connfd, resp, resp_len, 0);
       if(err < 0) {
         printf("could not send HTTP response: %s\n", strerror(errno));
+      }
+
+      // check for connection: close
+      int to_close = 0;
+      for(size_t h = 0; h < request.header_count; h++) {
+        char *name = request.headers[h].header_name;
+        name[0] = tolower(name[0]);
+        // printf("header_name [%s]\n", request.headers[h].header_name);
+        if(strcmp(request.headers[h].header_name, "connection") != 0)
+          continue;
+        char *val = request.headers[h].header_value;
+        val[0] = tolower(val[0]);
+        // printf("header_value [%s]\n", val + strlen(val) - 5);
+        if((strlen(val) >= 5) && (strcmp(val + strlen(val) - 5, "close") == 0))
+          to_close = 1;
+      }
+      if(close) {
+        printf("closing connection with fd %d\n", client_info.connfd);
+        close(pollfd->fd);
+        pollfd->fd = -1;
+        continue;
       }
     }
 
