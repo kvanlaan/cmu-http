@@ -22,7 +22,7 @@ $(BK_DIR)/lex.yy.c: $(BK_DIR)/lexer.l
 	flex -o $@ $^
 
 $(BK_DIR)/y.tab.c: $(BK_DIR)/parser.y
-	yacc -d $^ -Wconflicts-sr -Wconflicts-rr
+	yacc -d $^ # -Wconflicts-sr -Wconflicts-rr
 	mv y.tab.c $@
 	mv y.tab.h $(BK_DIR)/y.tab.h
 

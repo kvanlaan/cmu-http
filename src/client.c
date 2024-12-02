@@ -27,21 +27,26 @@ int main(int argc, char *argv[]) {
     }
     
     /* Set up a connection to the HTTP server */
-    int http_sock;
-    struct sockaddr_in http_server;
-    if ((http_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    int sockfd;
+    struct sockaddr_in sin;
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         return TEST_ERROR_HTTP_CONNECT_FAILED;
     }
-    http_server.sin_family = AF_INET;
-    http_server.sin_port = htons(HTTP_PORT);
-    inet_pton(AF_INET, argv[1], &(http_server.sin_addr));
-    
-    fprintf(stderr, "Parsed IP address of the server: %X\n", htonl(http_server.sin_addr.s_addr));
 
-    if (connect (http_sock, (struct sockaddr *)&http_server, sizeof(http_server)) < 0){
+    int optval = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(int));
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(int));
+
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(HTTP_PORT);
+    inet_pton(AF_INET, argv[1], &(sin.sin_addr));
+    
+    fprintf(stderr, "Parsed IP address of the server: %X\n", htonl(sin.sin_addr.s_addr));
+
+    if(connect(sockfd, (struct sockaddr *)&sin, sizeof(sin)) < 0){
         return TEST_ERROR_HTTP_CONNECT_FAILED;
     }
 
     /* CP1: Send out a HTTP request, waiting for the response */
-
+    
 }
