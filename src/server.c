@@ -55,6 +55,18 @@ struct client_info
 };
 
 
+
+#define ERR(msg, __VA_ARGS__) if(__VA_ARGS__) {\
+  fprintf(stderr, msg);\
+  exit(1);\
+}
+#define CHK(msg, __VA_ARGS__) if(__VA_ARGS__) {\
+  printf(msg);\
+  return -1;\
+}
+
+
+
 int new_connection(int sockfd, struct pollfd *poll_list,
     struct client_info *client_info_list) {
   printf("received connection!\n");
@@ -73,7 +85,13 @@ int new_connection(int sockfd, struct pollfd *poll_list,
   if(i == MAX_CONCURRENT_CONNS) {
     // send 503
     printf("new connection, but too many existing -- sending 503\n");
-    return -1;
+    char *msg;
+    size_t msg_len;
+    serialize_http_response(&msg, &msg_len, "503 Service Unavailable\n",
+      NULL, NULL, NULL, 0, NULL);
+    int err = send(client_sockfd, msg, msg_len, 0);
+    ERR("could not send HTTP 400\n", err < 0)
+    return 0;
   }
 
   // new connection at location i in list
@@ -87,9 +105,9 @@ int new_connection(int sockfd, struct pollfd *poll_list,
   client_info->connfd = client_sockfd;
 
   char *ip = inet_ntoa(client_addr.sin_addr);
-  printf("new connection successfully set up from %s fd %d!\n", ip, client_sockfd);
+  printf("new connection successfully set up from %s fd %d at %d!\n", ip, client_sockfd, i);
 
-  return 0;
+  return 1;
 }
 
 
@@ -97,16 +115,6 @@ int new_connection(int sockfd, struct pollfd *poll_list,
 // returns proper HTTP response
 char* process_http_request(Request *request, size_t *len) {
   return NULL;
-}
-
-
-#define ERR(msg, __VA_ARGS__) if(__VA_ARGS__) {\
-  fprintf(stderr, msg);\
-  exit(1);\
-}
-#define CHK(msg, __VA_ARGS__) if(__VA_ARGS__) {\
-  printf(msg);\
-  return -1;\
 }
 
 int main(int argc, char *argv[])
@@ -154,7 +162,7 @@ int main(int argc, char *argv[])
   struct pollfd poll_list[MAX_CONCURRENT_CONNS + 1];  // extra is for server
   for(size_t i = 0; i < MAX_CONCURRENT_CONNS; i++) {
     poll_list[i].fd = -1;
-    poll_list[i].events = POLLIN;
+    poll_list[i].events = POLLIN | POLLHUP | POLLERR;
     poll_list[i].revents = 0;
   }
   struct client_info client_info_list[MAX_CONCURRENT_CONNS];
@@ -179,68 +187,82 @@ int main(int argc, char *argv[])
       my_pollfd->revents = 0;
 
       new_connection(sockfd, poll_list, client_info_list);
+      if(n_ready == 0)
+        continue;
     } else if(my_pollfd->revents != 0) {
       printf("weird server socket file state\n");
-      // ERR("weird server socket file state\n", (my_pollfd->revents != 0))
     }
+    printf("%d events!\n", n_ready);
     
     
     for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
     {
-      struct pollfd pollfd = poll_list[i];
+      struct pollfd* pollfd = &(poll_list[i]);
+      if(pollfd->fd < 0)
+        continue;
+      int revents = pollfd->revents;
+      printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
 
-      if((pollfd.revents & POLLIN) == 0)
+      pollfd->revents = 0;
+      if((revents & POLLIN) == 0)
         continue;
 
       struct client_info client_info = client_info_list[i];
       char buf[BUF_SIZE];
-      printf("connfd is %d\n", client_info.connfd);
       int len = recv(client_info.connfd, buf, BUF_SIZE,
                      MSG_DONTWAIT | MSG_PEEK);
       if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info.connfd, strerror(errno)); continue; }
 
+      int shutdown = (len == 0) || ((revents & POLLHUP) > 0);
+      if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
+        printf("closing connection with fd %d\n", client_info.connfd);
+        pollfd->fd = -1;
+        continue;
+      }
+
       Request request;
       err = parse_http_request(buf, len, &request);
-      if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed\n"); continue;  }
+      if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed %d bytes\n", len); continue;  }
       // TODO send 503
       if(err == TEST_ERROR_PARSE_FAILED) {
         printf("parsing failed, sending HTTP 400\n");
         // shift the socket recv buffer
         err = recv(client_info.connfd, buf, request.status_header_size, MSG_DONTWAIT);
-        ERR("could not shift buffer\n", err < 0)
+        ERR("could not shift buffer\n", (err < 0))
         // send HTTP 400
         char *msg;
         size_t msg_len;
         serialize_http_response(&msg, &msg_len, "400 Bad Request\n",
           NULL, NULL, NULL, 0, NULL);
         err = send(client_info.connfd, msg, msg_len, 0);
-        ERR("could not send HTTP 400\n", err < 0)
-        printf("send HTTP 400\n");
+        ERR("could not send HTTP 400\n", (err < 0))
         continue;
       }
-      // if(err != TEST_ERROR_NONE) { printf("weird parse error code\n"); continue; }
-      
       // shift the socket recv buffer
       err = recv(client_info.connfd, buf, request.status_header_size,
                      MSG_DONTWAIT);
       if(err < 0) {
         printf("coulnd't shift buffer 2: %s\n", strerror(errno));
       }
-      // ERR("couldn't shift buffer2\n", err < 0)
-      char buffer[BUF_SIZE];
-      size_t size;
-      serialize_http_request(buffer, &size, &request);
-      buffer[size] = '\0';
-      printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
-      printf("status_header_size is %d\n", request.status_header_size);
-      printf("buffer size is %d\n", size);
+            {
+              char buffer[BUF_SIZE];
+              size_t size;
+              serialize_http_request(buffer, &size, &request);
+              buffer[size] = '\0';
+              printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
+              printf("status_header_size is %d\n", request.status_header_size);
+              printf("buffer size is %d\n", size);
+            }
 
-      size_t resp_len;
-      char *resp = process_http_request(&request, &resp_len);
-      err = send(client_info.connfd, resp, resp_len, 0);
-      if(err < 0) {
-        printf("could not send: %s\n", strerror(errno));
-      }
+      // size_t resp_len;
+      // char *resp = process_http_request(&request, &resp_len);
+      // char *resp = "hello from Raphael";
+      // size_t resp_len = strlen(resp);
+      // err = send(client_info.connfd, resp, resp_len, 0);
+      // if(err < 0) {
+      //   printf("could not send: %s\n", strerror(errno));
+      // }
+      // exit(1);
     }
 
   }
