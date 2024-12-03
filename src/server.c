@@ -90,7 +90,7 @@ int new_connection(int sockfd, struct pollfd *poll_list,
     serialize_http_response(&msg, &msg_len, "503 Service Unavailable\n",
       NULL, NULL, NULL, 0, NULL);
     int err = send(client_sockfd, msg, msg_len, 0);
-    ERR("could not send HTTP 400\n", err < 0)
+    ERR("could not send HTTP 503\n", err < 0)
     return 0;
   }
 
@@ -141,7 +141,7 @@ inline int client_update(struct client_info *client_info, char *folder) {
   int no_method = ((strcmp(request.http_method, "GET") != 0)
           && (strcmp(request.http_method, "HEAD") != 0)
           && (strcmp(request.http_method, "POST") != 0));
-  if((err == TEST_ERROR_PARSE_FAILED)) { // || wrong_version || no_method) {
+  if((err == TEST_ERROR_PARSE_FAILED) || wrong_version) { // || wrong_version || no_method) {
     printf("parsing failed, sending HTTP 400\n");
     // shift the socket recv buffer
     err = recv(client_info->connfd, buf, request.status_header_size, MSG_DONTWAIT);
