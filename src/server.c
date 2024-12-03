@@ -304,7 +304,8 @@ int main(int argc, char *argv[])
       int revents = pollfd->revents;
       pollfd->revents = 0;
       printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
-      if((revents & (POLLHUP|POLLIN)) == POLLHUP) {
+      char c;
+      if((revents & POLLHUP) && (recv(pollfd->fd, &c, 1, MSG_DONTWAIT|MSG_PEEK) == 0)) {
         printf("2 closing connection  with fd %d\n", pollfd->fd);
         close(pollfd->fd);
         pollfd->fd = -1;

@@ -19,6 +19,8 @@
 #include <test_error.h>
 #include <ports.h>
 
+#include <errno.h>
+
 int main(int argc, char *argv[]) {
     /* Validate and parse args */
     if (argc != 2) {
@@ -85,8 +87,12 @@ int main(int argc, char *argv[]) {
       }
     }
     printf("sent msgs!\n");
-    while(recv(sockfd, buf, 8192, 0)) {}
+    int len;
+    while((len = recv(sockfd, buf, 8192, MSG_DONTWAIT)) > 0) {
+    }
     printf("recved msgs!\n");
+    sleep(5);
+    printf("ok I, the client, am going now, bye!\n");
 
     // parse_http_response should be implemeted in CP2
 }
