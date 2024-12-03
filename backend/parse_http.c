@@ -96,6 +96,9 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
         printf("NO RESOURCE indicated \n");
         return serialize_http_response_wrapper(len, BAD_REQUEST);
     }
+    if(http_resource_path[1] == '\0') {
+      http_resource_path = "/index.html";
+    }
 
     // concating base dir and file path
     int path_len = strlen(base_folder)  + strlen(http_resource_path) + 1; 

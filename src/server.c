@@ -141,7 +141,9 @@ inline int client_update(struct client_info *client_info, char *folder) {
   int no_method = ((strcmp(request.http_method, "GET") != 0)
           && (strcmp(request.http_method, "HEAD") != 0)
           && (strcmp(request.http_method, "POST") != 0));
-  if((err == TEST_ERROR_PARSE_FAILED) || wrong_version) { // || wrong_version || no_method) {
+  int is_req_invalid = (err == TEST_ERROR_PARSE_FAILED) || wrong_version ||
+    no_method;
+  if(is_req_invalid) { // || wrong_version || no_method) {
     printf("parsing failed, sending HTTP 400\n");
     // shift the socket recv buffer
     err = recv(client_info->connfd, buf, request.status_header_size, MSG_DONTWAIT);
@@ -153,8 +155,9 @@ inline int client_update(struct client_info *client_info, char *folder) {
       NULL, NULL, NULL, 0, NULL);
     err = send(client_info->connfd, msg, msg_len, 0);
     ERR("could not send HTTP 400\n", (err < 0))
-    return 1;
   }
+  if(err == TEST_ERROR_PARSE_FAILED)
+    return 1;
   // shift the socket recv buffer
   err = recv(client_info->connfd, buf, request.status_header_size,
                  MSG_DONTWAIT);
@@ -171,12 +174,14 @@ inline int client_update(struct client_info *client_info, char *folder) {
           printf("buffer size is %d\n", size);
         }
 
-  size_t resp_len;
-  printf("about to process\n");
-  char *resp = process_http_request(&request, &resp_len, folder);
-  err = send(client_info->connfd, resp, resp_len, 0);
-  if(err < 0) {
-    printf("could not send HTTP response: %s\n", strerror(errno));
+  if(!is_req_invalid) {
+    size_t resp_len;
+    printf("about to process\n");
+    char *resp = process_http_request(&request, &resp_len, folder);
+    err = send(client_info->connfd, resp, resp_len, 0);
+    if(err < 0) {
+      printf("could not send HTTP response: %s\n", strerror(errno));
+    }
   }
 
   // check for connection: close
