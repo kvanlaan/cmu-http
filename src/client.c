@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
     Request request = {
       "1.1",
       "GET",
-      "/index2.html",
+      "/index.html",
       "127.0.0.1",
       // headers,
       // header_count,
@@ -77,11 +77,16 @@ int main(int argc, char *argv[]) {
       printf("error serializing request\n");
     }
     buf[size] = '\0';
-    printf("sending request:\n%s\n", buf);
-    err = send(sockfd, buf, size, 0);
-    if(err < 0) {
-      printf("error sending msg\n");
+    for(int i = 0; i < 10; i++) {
+      printf("sending request %d:\n%s\n", i + 1, buf);
+      err = send(sockfd, buf, size, 0);
+      if(err < 0) {
+        printf("error sending msg\n");
+      }
     }
+    printf("sent msgs!\n");
+    while(recv(sockfd, buf, 8192, 0)) {}
+    printf("recved msgs!\n");
 
     // parse_http_response should be implemeted in CP2
 }

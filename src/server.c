@@ -10,6 +10,7 @@
  */
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,7 +90,7 @@ int new_connection(int sockfd, struct pollfd *poll_list,
     size_t msg_len;
     serialize_http_response(&msg, &msg_len, "503 Service Unavailable\n",
       NULL, NULL, NULL, 0, NULL);
-    int err = send(client_sockfd, msg, msg_len, 0);
+    int err = send(client_sockfd, msg, msg_len, MSG_NOSIGNAL);
     ERR("could not send HTTP 503\n", err < 0)
     return 0;
   }
@@ -122,10 +123,17 @@ inline int client_update(struct client_info *client_info, char *folder) {
   char buf[BUF_SIZE];
   int len = recv(client_info->connfd, buf, BUF_SIZE,
                  MSG_DONTWAIT | MSG_PEEK);
-  if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info->connfd, strerror(errno)); return 1; }
+  if(len < 0) {
+    printf("couldn't receive data from %d: %s\n", client_info->connfd,
+        strerror(errno));
+    return 1;
+  }
 
   int shutdown = (len == 0);
-  if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
+  if(shutdown) { 
+    /* according to spec, when recv() returns 0, client has either shutdown or
+     * sent a zero-length datagram. We don't permit the latter, so this means we
+     * shutdown */
     printf("closing connection with fd %d\n", client_info->connfd);
     return 0;
   }
@@ -136,6 +144,7 @@ inline int client_update(struct client_info *client_info, char *folder) {
     printf("parsing partial'ed %d bytes\n", len);
     return 1;
   }
+
   printf("version: [%s], method: [%s]\n", request.http_version, request.http_method);
   int wrong_version = (strcmp(request.http_version, "HTTP/1.1") != 0);
   int no_method = ((strcmp(request.http_method, "GET") != 0)
@@ -150,15 +159,19 @@ inline int client_update(struct client_info *client_info, char *folder) {
     size_t msg_len;
     serialize_http_response(&msg, &msg_len, "400 Bad Request\n",
       NULL, NULL, NULL, 0, NULL);
-    err = send(client_info->connfd, msg, msg_len, 0);
-    ERR("could not send HTTP 400\n", (err < 0))
+    err = send(client_info->connfd, msg, msg_len, MSG_NOSIGNAL);
+    if(err < 0) {
+      printf("could not send HTTP 400\n");
+    }
   }
+
   // shift the socket recv buffer
   err = recv(client_info->connfd, buf, request.status_header_size,
                  MSG_DONTWAIT);
   if(err < 0) {
     printf("coulnd't shift buffer 2: %s\n", strerror(errno));
   }
+
         {
           char buffer[BUF_SIZE];
           size_t size;
@@ -173,7 +186,7 @@ inline int client_update(struct client_info *client_info, char *folder) {
     size_t resp_len;
     printf("about to process\n");
     char *resp = process_http_request(&request, &resp_len, folder);
-    err = send(client_info->connfd, resp, resp_len, 0);
+    err = send(client_info->connfd, resp, resp_len, MSG_NOSIGNAL);
     if(err < 0) {
       printf("could not send HTTP response: %s\n", strerror(errno));
     }
@@ -231,6 +244,9 @@ int main(int argc, char *argv[])
   int optval = 1;
   setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
   setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
+  /* tcp timeout */
+  optval = 3000;
+  setsockopt(sockfd, IPPROTO_TCP, TCP_USER_TIMEOUT, &optval, sizeof(optval));
 
   struct sockaddr_in sin;
   bzero((char*)&sin, sizeof(sin));
@@ -280,7 +296,7 @@ int main(int argc, char *argv[])
     printf("%d events!\n", n_ready);
     
     
-    for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
+    for (int i = 0; i < 1; i++)
     {
       struct pollfd* pollfd = &(poll_list[i]);
       if(pollfd->fd < 0)
@@ -288,13 +304,8 @@ int main(int argc, char *argv[])
       int revents = pollfd->revents;
       pollfd->revents = 0;
       printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
-      // char c;
-      // if(recv(client_info_list[i].connfd, &c, 1, MSG_DONTWAIT | MSG_PEEK) == 0) {
-      //   close(pollfd->fd);
-      //   pollfd->fd = -1;
-      //   continue;
-      // }
-      if(revents & POLLHUP) {
+      if((revents & (POLLHUP|POLLIN)) == POLLHUP) {
+        printf("2 closing connection  with fd %d\n", pollfd->fd);
         close(pollfd->fd);
         pollfd->fd = -1;
         continue;
@@ -304,6 +315,7 @@ int main(int argc, char *argv[])
       struct client_info *client_info = &(client_info_list[i]);
       int keep = client_update(client_info, www_folder);
       if(!keep) {
+        printf("3 closing connection  with fd %d\n", client_info->connfd);
         close(pollfd->fd);
         pollfd->fd = -1;
       }
