@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
     printf("%d events!\n", n_ready);
     
     
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < MAX_CONCURRENT_CONNS; i++)
     {
       struct pollfd* pollfd = &(poll_list[i]);
       if(pollfd->fd < 0)
