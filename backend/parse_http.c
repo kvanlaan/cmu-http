@@ -109,7 +109,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
     strcat(resource_path, http_resource_path); 
 
     if (access(resource_path, F_OK) != 0) {
-        printf("RESOURCE NOT FOUND\n");
+        printf("RESOURCE NOT FOUND: %s\n", resource_path);
         return serialize_http_response_wrapper(len, NOT_FOUND);
     }
 

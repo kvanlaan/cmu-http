@@ -129,15 +129,6 @@ inline int client_update(struct client_info *client_info, char *folder) {
     return 1;
   }
 
-  int shutdown = (len == 0);
-  if(shutdown) { 
-    /* according to spec, when recv() returns 0, client has either shutdown or
-     * sent a zero-length datagram. We don't permit the latter, so this means we
-     * shutdown */
-    printf("closing connection with fd %d\n", client_info->connfd);
-    return 0;
-  }
-
   Request request;
   int parse_err = parse_http_request(buf, len, &request);
   if(parse_err == TEST_ERROR_PARSE_PARTIAL) {
