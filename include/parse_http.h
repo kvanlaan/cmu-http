@@ -60,6 +60,7 @@ typedef struct {
     size_t status_header_size;  //!< Size of the status line and headers
     char *body;                 //!< HTTP body, could be the content of the file
     bool valid;                 //!< Whether the request is valid
+    int body_length;             //!< Request body_length
 } Request;
 
 // functions decalred in parser.y

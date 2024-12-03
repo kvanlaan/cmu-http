@@ -208,6 +208,7 @@ inline int client_update(struct client_info *client_info, char *folder)
       }
     }
     request.body[content_length] = '\0';
+    request.body_length = content_length + 1;
   }
 
   {

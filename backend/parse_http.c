@@ -15,21 +15,25 @@
 
 #include <dirent.h>
 
-void trim_whitespace(char *input, size_t length) {
-    if (input == NULL) {
+void trim_whitespace(char *input, size_t length)
+{
+    if (input == NULL)
+    {
         fprintf(stderr, "Error: Input string is NULL.\n");
         return;
     }
 
     // Find the index of the first non-whitespace character from the beginning
     size_t start = 0;
-    while (start < length && isspace(input[start])) {
+    while (start < length && isspace(input[start]))
+    {
         start++;
     }
 
     // Find the index of the first non-whitespace character from the end
     size_t end = length - 1;
-    while (end > start && isspace(input[end])) {
+    while (end > start && isspace(input[end]))
+    {
         end--;
     }
 
@@ -38,7 +42,8 @@ void trim_whitespace(char *input, size_t length) {
 
     // Allocate memory for the trimmed string
     char *result = (char *)malloc((trimmed_length + 1) * sizeof(char));
-    if (result == NULL) {
+    if (result == NULL)
+    {
         fprintf(stderr, "Error: Memory allocation failed.\n");
         return;
     }
@@ -59,19 +64,21 @@ void trim_whitespace(char *input, size_t length) {
     return;
 }
 
-void to_lower(char *str, size_t str_len) {
-    for (int i = 0; i < str_len; i++) {
+void to_lower(char *str, size_t str_len)
+{
+    for (int i = 0; i < str_len; i++)
+    {
         str[i] = tolower(str[i]);
     }
 }
 
-
 /**
  * Wrapper for serializing an error HTTP response.
  * @param pointer message
- * @param response_type 
+ * @param response_type
  */
-char *serialize_http_response_wrapper(size_t *len, const char *response_type) {
+char *serialize_http_response_wrapper(size_t *len, const char *response_type)
+{
     char *resp_text;
     serialize_http_response(&resp_text, len, response_type, NULL, NULL, NULL, 0, NULL);
     return resp_text;
@@ -79,17 +86,19 @@ char *serialize_http_response_wrapper(size_t *len, const char *response_type) {
 
 // get file size
 // @param char* file_path (path to resource)
-size_t get_file_size(char *file_path) {
+size_t get_file_size(char *file_path)
+{
     struct stat st;
     // to-do add error handling robustness
     stat(file_path, &st);
     return st.st_size;
 }
 
-
-char *size_to_string(size_t size) {
+char *size_to_string(size_t size)
+{
     char *size_str = malloc(32); // Allocate memory for the formatted string
-    if (size_str == NULL) {
+    if (size_str == NULL)
+    {
         perror("Error allocating memory for Content-Length");
         return NULL;
     }
@@ -98,80 +107,86 @@ char *size_to_string(size_t size) {
 }
 
 /**
-* Given a char buffer returns the parsed request headers
-*/
-char *process_http_request(Request *request, size_t *len, char *base_folder) {
-      char *method = request->http_method;
-      printf("METHOD \n");
+ * Given a char buffer returns the parsed request headers
+ */
+char *process_http_request(Request *request, size_t *len, char *base_folder)
+{
+    char *method = request->http_method;
+    printf("METHOD \n");
     if (strcmp(method, "GET") == 0)
     {
 
-    static const char *index_str = "/index.html";
+        static const char *index_str = "/index.html";
 
-    char *http_resource_path = request->http_uri;
+        char *http_resource_path = request->http_uri;
 
-    // unexpected behavior in this method...
-    if (http_resource_path[0] != '/') {
-        printf("NO RESOURCE indicated \n");
-        return serialize_http_response_wrapper(len, BAD_REQUEST);
-    }
+        // unexpected behavior in this method...
+        if (http_resource_path[0] != '/')
+        {
+            printf("NO RESOURCE indicated \n");
+            return serialize_http_response_wrapper(len, BAD_REQUEST);
+        }
 
-    // concating base dir and file path
-    int path_len = strlen(base_folder) + strlen(http_resource_path); 
+        // concating base dir and file path
+        int path_len = strlen(base_folder) + strlen(http_resource_path);
 
-    char * resource_path = (char *)malloc(path_len + strlen(index_str) + 1);
-    strcpy(resource_path, base_folder);
-    strcat(resource_path, http_resource_path); 
+        char *resource_path = (char *)malloc(path_len + strlen(index_str) + 1);
+        strcpy(resource_path, base_folder);
+        strcat(resource_path, http_resource_path);
 
-    if (access(resource_path, F_OK) != 0) {
-        printf("RESOURCE NOT FOUND: %s\n", resource_path);
-        return serialize_http_response_wrapper(len, NOT_FOUND);
-    }
+        if (access(resource_path, F_OK) != 0)
+        {
+            printf("RESOURCE NOT FOUND: %s\n", resource_path);
+            return serialize_http_response_wrapper(len, NOT_FOUND);
+        }
 
-    /* check if resource_path points to a directory */
+        /* check if resource_path points to a directory */
 
-    printf("resource requested: %s\n", resource_path);
-    DIR *dir = opendir(resource_path);
-    if(dir != NULL) {
-      // int s = (resource_path[strlen(resource_path) - 1] == '/');
-      // strcat(resource_path, index_str + s);
-      strcat(resource_path, index_str);
-      printf("Directory requested, new request is %s\n", resource_path);
-      closedir(dir);
-    }
+        printf("resource requested: %s\n", resource_path);
+        DIR *dir = opendir(resource_path);
+        if (dir != NULL)
+        {
+            // int s = (resource_path[strlen(resource_path) - 1] == '/');
+            // strcat(resource_path, index_str + s);
+            strcat(resource_path, index_str);
+            printf("Directory requested, new request is %s\n", resource_path);
+            closedir(dir);
+        }
 
-    FILE *resource_file = fopen(resource_path, "rb");
-    if (resource_file == NULL)  {
-        return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
-    }
+        FILE *resource_file = fopen(resource_path, "rb");
+        if (resource_file == NULL)
+        {
+            return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+        }
 
-    size_t resource_file_size = get_file_size(resource_path);
+        size_t resource_file_size = get_file_size(resource_path);
 
-    char *resource_file_content = malloc(resource_file_size);
-    if (resource_file_content == NULL) {
+        char *resource_file_content = malloc(resource_file_size);
+        if (resource_file_content == NULL)
+        {
+            fclose(resource_file);
+            free(resource_path);
+            return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+        }
+
+        fread(resource_file_content, 1, resource_file_size, resource_file);
+
+        char *content_length_str = size_to_string(resource_file_size);
+        char *response;
+        serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
+
         fclose(resource_file);
+        free(resource_file_content);
         free(resource_path);
-        return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+
+        return response;
     }
-
-    fread(resource_file_content, 1, resource_file_size, resource_file);
-    
-    char *content_length_str = size_to_string(resource_file_size);
-    char *response;
-    serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
-
-    fclose(resource_file);
-    free(resource_file_content);
-    free(resource_path);
-
-    return response;
-    }
-        else if (strcmp(method, "POST") == 0)
+    else if (strcmp(method, "POST") == 0)
     {
-      
-    // to-do this request->body field needs to be correctly populated
+        printf("POST\n");
+        // to-do this request->body field needs to be correctly populated
         char *post_content = request->body;
-                printf("POST %s\n", post_content);
+        printf("POST %s\n", post_content);
 
         if (post_content == NULL)
         {
@@ -179,110 +194,118 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
         }
 
         size_t post_content_size = sizeof(post_content);
-    
-        char *content_length_str = size_to_string(post_content_size);
+
+        char *content_length_str = size_to_string(request->body_length);
 
         char *response;
-        serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, post_content_size, post_content);
+        serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, request->body_length, post_content);
         free(content_length_str);
         return response;
     }
 }
 
-
 /**
-* Given a char buffer returns the parsed request headers
-*/
-test_error_code_t parse_http_request(char *buffer, size_t size, Request *request) {
-  //Differant states in the state machine
-	enum {
-		STATE_START = 0, STATE_CR, STATE_CRLF, STATE_CRLFCR, STATE_CRLFCRLF
-	};
+ * Given a char buffer returns the parsed request headers
+ */
+test_error_code_t parse_http_request(char *buffer, size_t size, Request *request)
+{
+    // Differant states in the state machine
+    enum
+    {
+        STATE_START = 0,
+        STATE_CR,
+        STATE_CRLF,
+        STATE_CRLFCR,
+        STATE_CRLFCRLF
+    };
 
-	int i = 0, state;
-	size_t offset = 0;
-	char ch;
-	// Safe to assume that every valid request has header smaller than
-	// 8192 bytes. This buf does not hold body content.
-	char buf[8192];
-	memset(buf, 0, 8192);
+    int i = 0, state;
+    size_t offset = 0;
+    char ch;
+    // Safe to assume that every valid request has header smaller than
+    // 8192 bytes. This buf does not hold body content.
+    char buf[8192];
+    memset(buf, 0, 8192);
 
-	state = STATE_START;
-	while (state != STATE_CRLFCRLF) {
-		char expected = 0;
+    state = STATE_START;
+    while (state != STATE_CRLFCRLF)
+    {
+        char expected = 0;
 
-		if (i == size)
-			break;
+        if (i == size)
+            break;
 
-		ch = buffer[i++];
-		buf[offset++] = ch;
+        ch = buffer[i++];
+        buf[offset++] = ch;
 
-		switch (state) {
-		case STATE_START:
-		case STATE_CRLF:
-			expected = '\r';
-			break;
-		case STATE_CR:
-		case STATE_CRLFCR:
-			expected = '\n';
-			break;
-		default:
-			state = STATE_START;
-			continue;
-		}
+        switch (state)
+        {
+        case STATE_START:
+        case STATE_CRLF:
+            expected = '\r';
+            break;
+        case STATE_CR:
+        case STATE_CRLFCR:
+            expected = '\n';
+            break;
+        default:
+            state = STATE_START;
+            continue;
+        }
 
-		if (ch == expected)
-			state++;
-		else
-			state = STATE_START;
+        if (ch == expected)
+            state++;
+        else
+            state = STATE_START;
+    }
 
-	}
+    // Valid End State
+    if (state == STATE_CRLFCRLF)
+    {
+        request->header_count = 0;
+        request->status_header_size = 0;
+        request->allocated_headers = 15;
 
-    //Valid End State
-	if (state == STATE_CRLFCRLF) {
-		request->header_count = 0;
-		request->status_header_size = 0;
-		request->allocated_headers = 15;
-        
-		request->headers = (Request_header *) malloc(sizeof(Request_header) * request->allocated_headers);
-		set_parsing_options(buf, i, request);
+        request->headers = (Request_header *)malloc(sizeof(Request_header) * request->allocated_headers);
+        set_parsing_options(buf, i, request);
 
-		yyrestart(NULL);
-		if (yyparse() == SUCCESS) {
-		    request->valid = true;
-		    for (int i = 0; i < request->header_count; ++i) {
-			    Request_header *header = &request->headers[i];
+        yyrestart(NULL);
+        if (yyparse() == SUCCESS)
+        {
+            request->valid = true;
+            for (int i = 0; i < request->header_count; ++i)
+            {
+                Request_header *header = &request->headers[i];
                 printf("header->header_name: %s\n", header->header_name);
-                
-                if ((strcasecmp(header->header_name, "Content-Length") == 0) || (strcasecmp(header->header_name, "content-length") == 0)) {
-                    request->body = (char *) malloc((size_t) (header->header_value + 1));
-                }
-			    trim_whitespace(header->header_name, strlen(header->header_name));
-			    to_lower(header->header_name, strlen(header->header_name));
-			    trim_whitespace(header->header_value, strlen(header->header_value));
-			    to_lower(header->header_value, strlen(header->header_value));
-		    }
-		    return TEST_ERROR_NONE;
-		}
-		return TEST_ERROR_PARSE_FAILED;
-	}
-	return TEST_ERROR_PARSE_PARTIAL;
+
+                trim_whitespace(header->header_name, strlen(header->header_name));
+                to_lower(header->header_name, strlen(header->header_name));
+                trim_whitespace(header->header_value, strlen(header->header_value));
+                to_lower(header->header_value, strlen(header->header_value));
+            }
+            return TEST_ERROR_NONE;
+        }
+        return TEST_ERROR_PARSE_FAILED;
+    }
+    return TEST_ERROR_PARSE_PARTIAL;
 }
 
 /**
  * Given a request returns the serialized char* buffer
  */
-test_error_code_t serialize_http_request(char *buffer, size_t *size, Request *request) {
+test_error_code_t serialize_http_request(char *buffer, size_t *size, Request *request)
+{
     memset(buffer, 0, HTTP_SIZE);
-    char* p = buffer;
-    if (strcmp(request->http_method, GET) != 0) {
+    char *p = buffer;
+    if (strcmp(request->http_method, GET) != 0)
+    {
         return TEST_ERROR_PARSE_FAILED;
     }
     memcpy(p, request->http_method, strlen(request->http_method));
     p[strlen(request->http_method)] = ' ';
     p += strlen(request->http_method) + 1;
     *size += strlen(request->http_method) + 1;
-    
+
     memcpy(p, request->http_uri, strlen(request->http_uri));
     p[strlen(request->http_uri)] = ' ';
     p += strlen(request->http_uri) + 1;
@@ -334,7 +357,8 @@ test_error_code_t serialize_http_request(char *buffer, size_t *size, Request *re
  * Given a char buffer returns the parsed request headers
  */
 test_error_code_t serialize_http_response(char **msg, size_t *len, const char *prepopulated_headers, char *content_type,
-                   char *content_length, char *last_modified, size_t body_len, char *body) {
+                                          char *content_length, char *last_modified, size_t body_len, char *body)
+{
     char date[4096];
     time_t now;
     time(&now);
@@ -347,19 +371,21 @@ test_error_code_t serialize_http_response(char **msg, size_t *len, const char *p
     size_t last_modified_len = last_modified == NULL ? 0 : strlen(last_modified);
 
     size_t prepopulated_len = strlen(prepopulated_headers);
-   size_t msg_len = prepopulated_len + strlen(HTTP_VER) + 1
-                     + strlen(CONNECTION) + strlen(CONNECTION_VAL) + strlen(CRLF)
-                     + strlen(SERVER) + strlen(SERVER_VAL) + strlen(CRLF)
-                     + strlen(DATE) + date_len + strlen(CRLF);
-    if (content_type != NULL) {
+    size_t msg_len = prepopulated_len + strlen(HTTP_VER) + 1 + strlen(CONNECTION) + strlen(CONNECTION_VAL) + strlen(CRLF) + strlen(SERVER) + strlen(SERVER_VAL) + strlen(CRLF) + strlen(DATE) + date_len + strlen(CRLF);
+    if (content_type != NULL)
+    {
         msg_len += strlen(CONTENT_TYPE) + content_type_len + strlen(CRLF);
     }
-    if (content_length != NULL) {
+    if (content_length != NULL)
+    {
         msg_len += strlen(CONTENT_LENGTH) + content_length_len + strlen(CRLF);
-    } else {
+    }
+    else
+    {
         msg_len += strlen(CONTENT_LENGTH) + strlen(ZERO) + strlen(CRLF);
     }
-    if (last_modified != NULL) {
+    if (last_modified != NULL)
+    {
         msg_len += strlen(CONTENT_TYPE) + last_modified_len + strlen(CRLF);
     }
     msg_len += strlen(CRLF);
@@ -383,32 +409,38 @@ test_error_code_t serialize_http_response(char **msg, size_t *len, const char *p
     cur_len += populate_header(*msg + cur_len, CONNECTION, strlen(CONNECTION), CONNECTION_VAL, strlen(CONNECTION_VAL));
     cur_len += populate_header(*msg + cur_len, SERVER, strlen(SERVER), SERVER_VAL, strlen(SERVER_VAL));
     cur_len += populate_header(*msg + cur_len, DATE, strlen(DATE), date, date_len);
-    if (content_type != NULL) {
+    if (content_type != NULL)
+    {
         cur_len += populate_header(*msg + cur_len, CONTENT_TYPE, strlen(CONTENT_TYPE), content_type, content_type_len);
     }
-    if (content_length != NULL) {
+    if (content_length != NULL)
+    {
         cur_len += populate_header(*msg + cur_len, CONTENT_LENGTH, strlen(CONTENT_LENGTH), content_length,
                                    content_length_len);
-    } else {
+    }
+    else
+    {
         cur_len += populate_header(*msg + cur_len, CONTENT_LENGTH, strlen(CONTENT_LENGTH), ZERO,
                                    strlen(ZERO));
     }
-    if (last_modified != NULL) {
+    if (last_modified != NULL)
+    {
         cur_len += populate_header(*msg + cur_len, LAST_MODIFIED, strlen(CONTENT_TYPE), last_modified,
                                    last_modified_len);
     }
     memcpy(*msg + cur_len, CRLF, strlen(CRLF));
     cur_len += strlen(CRLF);
 
-    if (body != NULL) {
+    if (body != NULL)
+    {
         memcpy(*msg + cur_len, body, body_len);
         cur_len += body_len;
     }
     return TEST_ERROR_NONE;
 }
 
-
-int populate_header(char *msg, char *field, const size_t field_len, char *val, const size_t val_len) {
+int populate_header(char *msg, char *field, const size_t field_len, char *val, const size_t val_len)
+{
     memcpy(msg, field, field_len);
     memcpy(msg + field_len, val, val_len);
     memcpy(msg + field_len + val_len, CRLF, strlen(CRLF));
