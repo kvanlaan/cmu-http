@@ -1,4 +1,6 @@
 ./sftp.json
+./cmu-http/**
+./cmu-http**
 sftp.json
 # CLion Directories
 .vscode/
