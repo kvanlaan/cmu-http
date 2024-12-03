@@ -107,6 +107,8 @@ char *size_to_string(size_t size) {
  */
 char *process_http_request(Request *request, size_t *len, char *base_folder)
 {
+
+
     char *http_resource_path = request->http_uri;
 
     // // unexpected behavior in this method...
@@ -145,27 +147,24 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         {
             fclose(resource_file);
             free(resource_path);
-            return serialize_http_response_wrapper(len, BAD_REQUEST);
+            return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
         }
 
         fread(resource_file_content, 1, resource_file_size, resource_file);
-        printf("ALL GOOD\n");
         char *content_length_str = size_to_string(resource_file_size);
-        printf("ERR\n");
         char *response;
         serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
-        printf("ALL GOOD post serialize\n");
         fclose(resource_file);
         free(resource_file_content);
         free(resource_path);
         free(content_length_str);
-        printf("last before return\n");
         return response;
     }
     else if (strcmp(method, "POST") == 0)
     {
-
+    // to-do this request->body field needs to be correctly populated
         char *post_content = request->body;
+
 
         if (post_content == NULL)
         {
