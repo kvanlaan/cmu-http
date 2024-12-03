@@ -145,7 +145,6 @@ inline int client_update(struct client_info *client_info, char *folder) {
     no_method;
   if(is_req_invalid) { // || wrong_version || no_method) {
     printf("parsing failed, sending HTTP 400\n");
-    // shift the socket recv buffer
     // send HTTP 400
     char *msg;
     size_t msg_len;
