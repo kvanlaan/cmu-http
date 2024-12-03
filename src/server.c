@@ -131,8 +131,8 @@ inline int client_update(struct client_info *client_info, char *folder) {
   }
 
   Request request;
-  err = parse_http_request(buf, len, &request);
-  if(err == TEST_ERROR_PARSE_PARTIAL) {
+  int parse_err = parse_http_request(buf, len, &request);
+  if(parse_err == TEST_ERROR_PARSE_PARTIAL) {
     printf("parsing partial'ed %d bytes\n", len);
     return 1;
   }
@@ -141,7 +141,7 @@ inline int client_update(struct client_info *client_info, char *folder) {
   int no_method = ((strcmp(request.http_method, "GET") != 0)
           && (strcmp(request.http_method, "HEAD") != 0)
           && (strcmp(request.http_method, "POST") != 0));
-  int is_req_invalid = (err == TEST_ERROR_PARSE_FAILED) || wrong_version ||
+  int is_req_invalid = (parse_err == TEST_ERROR_PARSE_FAILED) || wrong_version ||
     no_method;
   if(is_req_invalid) { // || wrong_version || no_method) {
     printf("parsing failed, sending HTTP 400\n");
@@ -156,8 +156,6 @@ inline int client_update(struct client_info *client_info, char *folder) {
     err = send(client_info->connfd, msg, msg_len, 0);
     ERR("could not send HTTP 400\n", (err < 0))
   }
-  if(err == TEST_ERROR_PARSE_FAILED)
-    return 1;
   // shift the socket recv buffer
   err = recv(client_info->connfd, buf, request.status_header_size,
                  MSG_DONTWAIT);
@@ -184,6 +182,8 @@ inline int client_update(struct client_info *client_info, char *folder) {
     }
   }
 
+  if((parse_err == TEST_ERROR_PARSE_FAILED) || wrong_version)
+    return 1;
   // check for connection: close
   int to_close = 0;
   for(size_t h = 0; h < request.header_count; h++) {
