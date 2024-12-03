@@ -87,10 +87,25 @@ size_t get_file_size(char *file_path) {
 }
 
 
+char *size_to_string(size_t size) {
+    char *size_str = malloc(32); // Allocate memory for the formatted string
+    if (size_str == NULL) {
+        perror("Error allocating memory for Content-Length");
+        return NULL;
+    }
+    snprintf(size_str, 32, "%zu", size); // Format the size
+    return size_str;
+}
+
 /**
 * Given a char buffer returns the parsed request headers
 */
 char *process_http_request(Request *request, size_t *len, char *base_folder) {
+      char *method = request->http_method;
+      printf("METHOD \n");
+    if (strcmp(method, "GET") == 0)
+    {
+
     static const char *index_str = "/index.html";
 
     char *http_resource_path = request->http_uri;
@@ -141,9 +156,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
 
     fread(resource_file_content, 1, resource_file_size, resource_file);
     
-    char content_length_str[32];
-    sprintf(content_length_str, "%zu", resource_file_size);
-    
+    char *content_length_str = size_to_string(resource_file_size);
     char *response;
     serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
 
@@ -152,6 +165,28 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
     free(resource_path);
 
     return response;
+    }
+        else if (strcmp(method, "POST") == 0)
+    {
+        printf("POST\n");
+    // to-do this request->body field needs to be correctly populated
+        char *post_content = request->body;
+                printf("POST %s\n", post_content);
+
+        if (post_content == NULL)
+        {
+            return serialize_http_response_wrapper(len, BAD_REQUEST);
+        }
+
+        size_t post_content_size = sizeof(post_content);
+    
+        char *content_length_str = size_to_string(post_content_size);
+
+        char *response;
+        serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, post_content_size, post_content);
+        free(content_length_str);
+        return response;
+    }
 }
 
 
@@ -216,6 +251,7 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
 		    request->valid = true;
 		    for (int i = 0; i < request->header_count; ++i) {
 			    Request_header *header = &request->headers[i];
+                printf("header->header_name: %s\n", header->header_name);
 			    trim_whitespace(header->header_name, strlen(header->header_name));
 			    to_lower(header->header_name, strlen(header->header_name));
 			    trim_whitespace(header->header_value, strlen(header->header_value));
