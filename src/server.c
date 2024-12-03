@@ -177,15 +177,43 @@ inline int client_update(struct client_info *client_info, char *folder)
     }
   }
   // shift the socket recv buffer
-  printf("content lenght %d\n", request.status_header_size + content_length);
-  err = recv(client_info->connfd, buf, request.status_header_size + content_length,
+  printf("content length %d\n", request.status_header_size + content_length);
+  // err = recv(client_info->connfd, buf, request.status_header_size + content_length,
+  //            MSG_DONTWAIT);
+
+  err = recv(client_info->connfd, buf, request.status_header_size,
              MSG_DONTWAIT);
   if (err < 0)
   {
     printf("coulnd't shift buffer 2: %s\n", strerror(errno));
   }
 
+  if (strcmp(request.http_method, "POST") == 0)
   {
+    request.body = (char *)malloc(content_length + 1);
+    if (request.body == NULL)
+    {
+      return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+    }
+
+    size_t read_ctr = 0;
+    while (read_ctr < content_length)
+    {
+      int recv_b = recv(client_info->connfd, request.body + read_ctr, content_length - read_ctr, 0);
+      if (recv_b >= 0)
+      {
+        read_ctr += recv_b;
+      } else {
+          return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+      }
+    }
+    request.body[content_length] = '\0';
+  }
+
+  {
+    printf("READ BUF TEST %s\n", buf);
+
+    printf("READ BODY TEST %s\n", request.body);
     char buffer[BUF_SIZE];
     size_t size;
     serialize_http_request(buffer, &size, &request);

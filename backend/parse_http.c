@@ -243,6 +243,7 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
 		request->header_count = 0;
 		request->status_header_size = 0;
 		request->allocated_headers = 15;
+        
 		request->headers = (Request_header *) malloc(sizeof(Request_header) * request->allocated_headers);
 		set_parsing_options(buf, i, request);
 
@@ -252,6 +253,10 @@ test_error_code_t parse_http_request(char *buffer, size_t size, Request *request
 		    for (int i = 0; i < request->header_count; ++i) {
 			    Request_header *header = &request->headers[i];
                 printf("header->header_name: %s\n", header->header_name);
+                
+                if ((strcasecmp(header->header_name, "Content-Length") == 0) || (strcasecmp(header->header_name, "content-length") == 0)) {
+                    request->body = (char *) malloc((size_t) (header->header_value + 1));
+                }
 			    trim_whitespace(header->header_name, strlen(header->header_name));
 			    to_lower(header->header_name, strlen(header->header_name));
 			    trim_whitespace(header->header_value, strlen(header->header_value));
