@@ -146,8 +146,6 @@ inline int client_update(struct client_info *client_info, char *folder) {
   if(is_req_invalid) { // || wrong_version || no_method) {
     printf("parsing failed, sending HTTP 400\n");
     // shift the socket recv buffer
-    err = recv(client_info->connfd, buf, request.status_header_size, MSG_DONTWAIT);
-    ERR("could not shift buffer\n", (err < 0))
     // send HTTP 400
     char *msg;
     size_t msg_len;
@@ -182,8 +180,8 @@ inline int client_update(struct client_info *client_info, char *folder) {
     }
   }
 
-  if((parse_err == TEST_ERROR_PARSE_FAILED) || wrong_version)
-    return 1;
+  // if((parse_err == TEST_ERROR_PARSE_FAILED) || wrong_version)
+  //   return 1;
   // check for connection: close
   int to_close = 0;
   for(size_t h = 0; h < request.header_count; h++) {
