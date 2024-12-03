@@ -91,6 +91,8 @@ size_t get_file_size(char *file_path) {
 * Given a char buffer returns the parsed request headers
 */
 char *process_http_request(Request *request, size_t *len, char *base_folder) {
+    static const char *index_str = "/index.html";
+
     char *http_resource_path = request->http_uri;
 
     // unexpected behavior in this method...
@@ -100,9 +102,9 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
     }
 
     // concating base dir and file path
-    int path_len = strlen(base_folder)  + strlen(http_resource_path) + 1; 
+    int path_len = strlen(base_folder) + strlen(http_resource_path); 
 
-    char * resource_path = (char *)malloc(path_len);
+    char * resource_path = (char *)malloc(path_len + strlen(index_str) + 1);
     strcpy(resource_path, base_folder);
     strcat(resource_path, http_resource_path); 
 
@@ -113,12 +115,13 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
 
     /* check if resource_path points to a directory */
 
+    printf("resource requested: %s\n", resource_path);
     DIR *dir = opendir(resource_path);
-    if(dir == NULL) {
-      int s = (resource_path[strlen(resource_path) - 1] == '/');
-      const char *index_str = "/index.html";
-      strcat(resource_path, index_str + s);
-      printf("Directory requested, new request is %s\n");
+    if(dir != NULL) {
+      // int s = (resource_path[strlen(resource_path) - 1] == '/');
+      // strcat(resource_path, index_str + s);
+      strcat(resource_path, index_str);
+      printf("Directory requested, new request is %s\n", resource_path);
       closedir(dir);
     }
 
