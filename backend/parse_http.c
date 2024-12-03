@@ -168,7 +168,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
     }
         else if (strcmp(method, "POST") == 0)
     {
-        printf("POST\n");
+      
     // to-do this request->body field needs to be correctly populated
         char *post_content = request->body;
                 printf("POST %s\n", post_content);

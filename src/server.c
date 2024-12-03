@@ -200,7 +200,7 @@ inline int client_update(struct client_info *client_info, char *folder)
     while (read_ctr < content_length)
     {
       int recv_b = recv(client_info->connfd, request.body + read_ctr, content_length - read_ctr, 0);
-      if (recv_b >= 0)
+      if (recv_b > 0)
       {
         read_ctr += recv_b;
       } else {
