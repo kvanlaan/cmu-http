@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <dirent.h>
+
 void trim_whitespace(char *input, size_t length) {
     if (input == NULL) {
         fprintf(stderr, "Error: Input string is NULL.\n");
@@ -96,9 +98,6 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
         printf("NO RESOURCE indicated \n");
         return serialize_http_response_wrapper(len, BAD_REQUEST);
     }
-    if(http_resource_path[1] == '\0') {
-      http_resource_path = "/index.html";
-    }
 
     // concating base dir and file path
     int path_len = strlen(base_folder)  + strlen(http_resource_path) + 1; 
@@ -110,6 +109,17 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
     if (access(resource_path, F_OK) != 0) {
         printf("RESOURCE NOT FOUND\n");
         return serialize_http_response_wrapper(len, NOT_FOUND);
+    }
+
+    /* check if resource_path points to a directory */
+
+    DIR *dir = opendir(resource_path);
+    if(dir == NULL) {
+      int s = (resource_path[strlen(resource_path) - 1] == '/');
+      const char *index_str = "/index.html";
+      strcat(resource_path, index_str + s);
+      printf("Directory requested, new request is %s\n");
+      closedir(dir);
     }
 
     FILE *resource_file = fopen(resource_path, "rb");
