@@ -92,6 +92,16 @@ int main(int argc, char *argv[]) {
     }
     printf("recved msgs!\n");
     sleep(5);
+    for(int i = 0; i < 10; i++) {
+      printf("sending request %d:\n%s\n", i + 1, buf);
+      err = send(sockfd, buf, size, 0);
+      if(err < 0) {
+        printf("error sending msg\n");
+      }
+    }
+    while((len = recv(sockfd, buf, 8192, MSG_DONTWAIT)) > 0) {
+    }
+    sleep(3);
     printf("ok I, the client, am going now, bye!\n");
 
     // parse_http_response should be implemeted in CP2

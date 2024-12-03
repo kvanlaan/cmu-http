@@ -129,6 +129,10 @@ inline int client_update(struct client_info *client_info, char *folder) {
     return 1;
   }
 
+  if(len == 0) {
+    return 0;
+  }
+
   Request request;
   int parse_err = parse_http_request(buf, len, &request);
   if(parse_err == TEST_ERROR_PARSE_PARTIAL) {
@@ -310,6 +314,7 @@ int main(int argc, char *argv[])
         printf("3 closing connection  with fd %d\n", client_info->connfd);
         close(pollfd->fd);
         pollfd->fd = -1;
+        continue;
       }
     }
   }
