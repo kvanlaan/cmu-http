@@ -110,6 +110,95 @@ int new_connection(int sockfd, struct pollfd *poll_list,
   return 1;
 }
 
+// struct {
+//   char *folder;
+// } server_info;
+
+/* should be called when new data available in client-socket, returns if we
+  should keep the connection alive */
+int client_update(struct client_info *client_info, char *folder);
+inline int client_update(struct client_info *client_info, char *folder) {
+  int err;
+  char buf[BUF_SIZE];
+  int len = recv(client_info->connfd, buf, BUF_SIZE,
+                 MSG_DONTWAIT | MSG_PEEK);
+  if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info->connfd, strerror(errno)); return 1; }
+
+  int shutdown = (len == 0);
+  if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
+    printf("closing connection with fd %d\n", client_info->connfd);
+    return 0;
+  }
+
+  Request request;
+  err = parse_http_request(buf, len, &request);
+  if(err == TEST_ERROR_PARSE_PARTIAL) {
+    printf("parsing partial'ed %d bytes\n", len);
+    return 1;
+  }
+  printf("version: [%s], method: [%s]\n", request.http_version, request.http_method);
+  int wrong_version = (strcmp(request.http_version, "HTTP/1.1") != 0);
+  int no_method = ((strcmp(request.http_method, "GET") != 0)
+          && (strcmp(request.http_method, "HEAD") != 0)
+          && (strcmp(request.http_method, "POST") != 0));
+  if((err == TEST_ERROR_PARSE_FAILED)) { // || wrong_version || no_method) {
+    printf("parsing failed, sending HTTP 400\n");
+    // shift the socket recv buffer
+    err = recv(client_info->connfd, buf, request.status_header_size, MSG_DONTWAIT);
+    ERR("could not shift buffer\n", (err < 0))
+    // send HTTP 400
+    char *msg;
+    size_t msg_len;
+    serialize_http_response(&msg, &msg_len, "400 Bad Request\n",
+      NULL, NULL, NULL, 0, NULL);
+    err = send(client_info->connfd, msg, msg_len, 0);
+    ERR("could not send HTTP 400\n", (err < 0))
+    return 1;
+  }
+  // shift the socket recv buffer
+  err = recv(client_info->connfd, buf, request.status_header_size,
+                 MSG_DONTWAIT);
+  if(err < 0) {
+    printf("coulnd't shift buffer 2: %s\n", strerror(errno));
+  }
+        {
+          char buffer[BUF_SIZE];
+          size_t size;
+          serialize_http_request(buffer, &size, &request);
+          buffer[size] = '\0';
+          printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
+          printf("status_header_size is %d\n", request.status_header_size);
+          printf("buffer size is %d\n", size);
+        }
+
+  size_t resp_len;
+  printf("about to process\n");
+  char *resp = process_http_request(&request, &resp_len, folder);
+  err = send(client_info->connfd, resp, resp_len, 0);
+  if(err < 0) {
+    printf("could not send HTTP response: %s\n", strerror(errno));
+  }
+
+  // check for connection: close
+  int to_close = 0;
+  for(size_t h = 0; h < request.header_count; h++) {
+    char *name = request.headers[h].header_name;
+    name[0] = tolower(name[0]);
+    // printf("header_name [%s]\n", request.headers[h].header_name);
+    if(strcmp(request.headers[h].header_name, "connection") != 0)
+      continue;
+    char *val = request.headers[h].header_value;
+    val[0] = tolower(val[0]);
+    // printf("header_value [%s]\n", val + strlen(val) - 5);
+    if((strlen(val) >= 5) && (strcmp(val + strlen(val) - 5, "close") == 0))
+      to_close = 1;
+  }
+  if(to_close) {
+    printf("got a connection close: closing connection with fd %d\n", client_info->connfd);
+    return 0;
+  }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -195,94 +284,27 @@ int main(int argc, char *argv[])
       if(pollfd->fd < 0)
         continue;
       int revents = pollfd->revents;
-      printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
-
       pollfd->revents = 0;
-      if((revents & POLLIN) == 0)
-        continue;
-
-      struct client_info client_info = client_info_list[i];
-      char buf[BUF_SIZE];
-      int len = recv(client_info.connfd, buf, BUF_SIZE,
-                     MSG_DONTWAIT | MSG_PEEK);
-      if(len < 0) { printf("couldn't receive data from %d: %s\n", client_info.connfd, strerror(errno)); continue; }
-
-      int shutdown = (len == 0) || ((revents & POLLHUP) > 0);
-      
-      if(shutdown) {  // according to spec, when recv() returns 0, client has either shutdown or sent a zero-length datagram. We don't permit the latter, so this means we shutdown
-        printf("closing connection with fd %d\n", client_info.connfd);
-        close(pollfd->fd);
-        pollfd->fd = -1;
-        continue;
-      }
-
-      Request request;
-      err = parse_http_request(buf, len, &request);
-      if(err == TEST_ERROR_PARSE_PARTIAL) { printf("parsing partial'ed %d bytes\n", len); continue;  }
-      printf("version: [%s], method: [%s]\n", request.http_version, request.http_method);
-      int wrong_version = (strcmp(request.http_version, "HTTP/1.1") != 0);
-      int no_method = ((strcmp(request.http_method, "GET") != 0)
-              && (strcmp(request.http_method, "HEAD") != 0)
-              && (strcmp(request.http_method, "POST") != 0));
-      if((err == TEST_ERROR_PARSE_FAILED)) { // || wrong_version || no_method) {
-        printf("parsing failed, sending HTTP 400\n");
-        // shift the socket recv buffer
-        err = recv(client_info.connfd, buf, request.status_header_size, MSG_DONTWAIT);
-        ERR("could not shift buffer\n", (err < 0))
-        // send HTTP 400
-        char *msg;
-        size_t msg_len;
-        serialize_http_response(&msg, &msg_len, "400 Bad Request\n",
-          NULL, NULL, NULL, 0, NULL);
-        err = send(client_info.connfd, msg, msg_len, 0);
-        ERR("could not send HTTP 400\n", (err < 0))
-        continue;
-      }
-      // shift the socket recv buffer
-      err = recv(client_info.connfd, buf, request.status_header_size,
-                     MSG_DONTWAIT);
-      if(err < 0) {
-        printf("coulnd't shift buffer 2: %s\n", strerror(errno));
-      }
-            {
-              char buffer[BUF_SIZE];
-              size_t size;
-              serialize_http_request(buffer, &size, &request);
-              buffer[size] = '\0';
-              printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
-              printf("status_header_size is %d\n", request.status_header_size);
-              printf("buffer size is %d\n", size);
-            }
-
-      size_t resp_len;
-      printf("about to process\n");
-      char *resp = process_http_request(&request, &resp_len, www_folder);
-      err = send(client_info.connfd, resp, resp_len, 0);
-      if(err < 0) {
-        printf("could not send HTTP response: %s\n", strerror(errno));
-      }
-
-      // // check for connection: close
-      // int to_close = 0;
-      // for(size_t h = 0; h < request.header_count; h++) {
-      //   char *name = request.headers[h].header_name;
-      //   name[0] = tolower(name[0]);
-      //   // printf("header_name [%s]\n", request.headers[h].header_name);
-      //   if(strcmp(request.headers[h].header_name, "connection") != 0)
-      //     continue;
-      //   char *val = request.headers[h].header_value;
-      //   val[0] = tolower(val[0]);
-      //   // printf("header_value [%s]\n", val + strlen(val) - 5);
-      //   if((strlen(val) >= 5) && (strcmp(val + strlen(val) - 5, "close") == 0))
-      //     to_close = 1;
-      // }
-      // if(close) {
-      //   printf("closing connection with fd %d\n", client_info.connfd);
+      printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
+      // char c;
+      // if(recv(client_info_list[i].connfd, &c, 1, MSG_DONTWAIT | MSG_PEEK) == 0) {
       //   close(pollfd->fd);
       //   pollfd->fd = -1;
       //   continue;
       // }
+      if(revents & POLLHUP) {
+        close(pollfd->fd);
+        pollfd->fd = -1;
+        continue;
+      }
+      if((revents & POLLIN) == 0)
+        continue;
+      struct client_info *client_info = &(client_info_list[i]);
+      int keep = client_update(client_info, www_folder);
+      if(!keep) {
+        close(pollfd->fd);
+        pollfd->fd = -1;
+      }
     }
-
   }
 }

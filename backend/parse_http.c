@@ -97,9 +97,6 @@ char *process_http_request(Request *request, size_t *len, char *base_folder) {
         return serialize_http_response_wrapper(len, BAD_REQUEST);
     }
 
-
-
-
     // concating base dir and file path
     int path_len = strlen(base_folder)  + strlen(http_resource_path) + 1; 
 
@@ -258,6 +255,9 @@ test_error_code_t serialize_http_request(char *buffer, size_t *size, Request *re
     p += strlen(CONNECTION);
     *size += strlen(CONNECTION);
 
+    // memcpy(p, CLOSE, strlen(CLOSE));
+    // p += strlen(CLOSE);
+    // *size += strlen(CLOSE);
     memcpy(p, CONNECTION_VAL, strlen(CONNECTION_VAL));
     p += strlen(CONNECTION_VAL);
     *size += strlen(CONNECTION_VAL);

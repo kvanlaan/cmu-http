@@ -52,8 +52,8 @@ int main(int argc, char *argv[]) {
     // const int header_count = 1;
     // Request_header headers[header_count];
     // Request_header header_0;
-    // memcpy(header_0.header_name, "Host", 5);
-    // memcpy(header_0.header_name, "It's me", 8);
+    // memcpy(header_0.header_name, "connection", 5);
+    // memcpy(header_0.header_name, "close", 8);
     // headers[0] = header_0;
     Request request = {
       "1.1",
@@ -82,5 +82,6 @@ int main(int argc, char *argv[]) {
     if(err < 0) {
       printf("error sending msg\n");
     }
+
     // parse_http_response should be implemeted in CP2
 }
