@@ -90,6 +90,12 @@ int req_resource(const char *path) {
     if(strcmp(client_data.resources[i], path) == 0)
       return 0;
   }
+  /* add the resource to the resource list */
+  client_data.resources = realloc(client_data.resources,
+      (client_data.n_resources + 1)*sizeof(char*));
+  char *path_str = malloc(sizeof(char*)*strlen(path));
+  memcpy(path_str, path, strlen(path));
+  client_data.resources[client_data.n_resources++] = path_str;
 
   /* find the connection with the least instream */
   uint32_t min_instream = (uint32_t)-1;
@@ -195,3 +201,4 @@ int main(int argc, char *argv[]) {
     perror("ERR occured from server\n");
   }
 }
+
