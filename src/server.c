@@ -348,6 +348,12 @@ int main(int argc, char *argv[])
       pollfd->revents = 0;
       printf("connfd is %d, revents is %d\n", pollfd->fd, revents);
       char c;
+      if(revents & POLLERR) {
+        printf("error with connection, closing\n", pollfd->fd);
+        close(pollfd->fd);
+        pollfd->fd = -1;
+        continue;
+      }
       if ((revents & POLLHUP) && (recv(pollfd->fd, &c, 1, MSG_DONTWAIT | MSG_PEEK) == 0))
       {
         printf("2 closing connection  with fd %d\n", pollfd->fd);

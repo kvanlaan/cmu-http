@@ -85,6 +85,7 @@ int new_connection() {
 /* assumes strlen(path) < 4096 & starts with '/' */
 /* makes a new connection if possible & all current conns have something instream */
 int req_resource(const char *path) {
+  printf("called req_resource() with path %s\n", path);
   /* check if resource already requested */
   for(uint32_t i = 0; i < client_data.n_resources; i++) {
     if(strcmp(client_data.resources[i], path) == 0)
@@ -120,28 +121,30 @@ int req_resource(const char *path) {
   Request request = {
     "1.1",
     "GET",
-    "",
+    "/",
     "127.0.0.1",
     NULL,
     0,
     0,
     0,
     NULL,
+    1,
     0
   };
-  strcpy(request.http_uri, path);
+  strcpy(request.http_uri + 1, path);
 
   char buf[MAX_HEADER_SIZE];
   size_t size;
   int err = serialize_http_request(buf, &size, &request);
   if(err != TEST_ERROR_NONE) {
     printf("error %d serializing request\n", err);
-    exit(1);
+    return -1;
   }
+  printf("CLIENT RSRC REQ: \n%s\n", buf);
   err = send(client_data.connections[conn_i].fd, buf, size, 0);
   if(err < 0) {
     printf("error sending msg\n");
-    exit(1);
+    return -1;
   }
   return 1;
 }
@@ -178,27 +181,45 @@ int main(int argc, char *argv[]) {
 
   char buf[BUF_SIZE];
   int len = read(sockfd, buf, BUF_SIZE);
-  if (len > 0)
+  printf("read dependency: %s\n", buf);
+  if(len == 0) { 
+    printf("read of zero\n");
+    exit(1);
+  }
+  // char *start_body = strstr(buf, "index.html");
+  // printf("body is: %s\n", start_body + 4);
+  // printf("chars are: %d,%d,%d,%d,%d\n", (int)*(start_body - 5), (int)*(start_body - 4), (int)*(start_body - 3), (int)*(start_body - 2), (int)*(start_body - 1));
+  printf("parsing dependency.csv...\n");
+  buf[len] = '\0';
+  char *start_body = strstr(buf, "\r\n\r\n");
+  char *body_end = start_body + strlen(start_body);
+  char *line = start_body + 3;
+  while (line++ < body_end - 1)
   {
-    buf[len] = '\0';
-    char *start_body = strstr(buf, "index.html");
-    char *dep_entry = strtok(start_body, "\r\n");
-    printf("FIX THIS extract loop");
-    while (dep_entry != NULL)
-    {
-      printf("dep_entry\n %s\n", dep_entry);
-      char *filename = strtok(NULL, ",");
-      printf("filename extract\n %s\n", filename);
-      printf("making request....\n");
-      char temp_buf[BUF_SIZE];
-      req_resource(temp_buf, sockfd, filename);
-      dep_entry = strtok(NULL, "\r\n");
-      printf("dep_entry\n %s\n", dep_entry);
+    char *next_line = strstr(line, "\n");
+    if(next_line == NULL)
+      next_line = body_end;
+    if(next_line != NULL)
+      *next_line = '\0';
+    printf("LINE:\n", (int)(next_line - line), line);
+    char *file = line;
+    char *com = strstr(line, ",");
+    if(com == NULL)
+      com = next_line;
+    while(1) {
+      *com = '\0';
+      printf("\tFILE: %s\n", file);
+      req_resource(file);
+      file = com + 1;
+      if(file >= next_line)
+        break;
+      com = strstr(file, ",");
+      if(com == NULL)
+        com = next_line;
     }
+    line = next_line;
   }
-  else
-  {
-    perror("ERR occured from server\n");
-  }
+  sleep(5);
+  return 0;
 }
 
