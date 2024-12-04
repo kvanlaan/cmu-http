@@ -111,11 +111,6 @@ char *size_to_string(size_t size)
  */
 char *process_http_request(Request *request, size_t *len, char *base_folder)
 {
-    char *method = request->http_method;
-    printf("METHOD \n");
-    if (strcmp(method, "GET") == 0)
-    {
-
         static const char *index_str = "/index.html";
 
         char *http_resource_path = request->http_uri;
@@ -180,30 +175,6 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         free(resource_path);
         free(content_length_str);
         return response;
-    }
-    else if (strcmp(method, "POST") == 0)
-    {
-        printf("POST\n");
-        // to-do this request->body field needs to be correctly populated
-        char *post_content = request->body;
-        printf("POST %s\n", post_content);
-
-        if (post_content == NULL)
-        {
-            return serialize_http_response_wrapper(len, BAD_REQUEST);
-        }
-
-        size_t post_content_size = sizeof(post_content);
-
-        char *response;
-        size_t request_size = sizeof(*request);
-        char *request_size_str = size_to_string(request_size);
-        serialize_http_response(&response, len, OK, NULL, request_size_str, NULL, request_size, request);
-
-        free(request->body);
-        free(request_size_str);
-        return response;
-    }
 }
 
 /**
