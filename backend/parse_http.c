@@ -195,12 +195,13 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
 
         size_t post_content_size = sizeof(post_content);
 
-        char *content_length_str = size_to_string(request->body_length);
-
         char *response;
-        serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, request->body_length, post_content);
-        free(content_length_str);
+        size_t request_size = sizeof(*request);
+        char *request_size_str = size_to_string(request_size);
+        serialize_http_response(&response, len, OK, NULL, request_size_str, NULL, request_size, request);
+
         free(request->body);
+        free(request_size_str);
         return response;
     }
 }

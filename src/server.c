@@ -172,53 +172,40 @@ inline int client_update(struct client_info *client_info, char *folder)
     }
   }
   size_t content_length = 0;
-  
+
   for (int i = 0; i < request.header_count; i++)
   {
     if ((strcasecmp(request.headers[i].header_name, "Content-Length") == 0) || (strcasecmp(request.headers[i].header_name, "content-length") == 0))
     {
       content_length = atoi(request.headers[i].header_value);
+      printf("content length %d", content_length);
       break;
     }
   }
   // shift the socket recv buffer
-  //printf("content length %d\n", request.status_header_size + content_length);
+  // printf("content length %d\n", request.status_header_size + content_length);
   // err = recv(client_info->connfd, buf, request.status_header_size + content_length,
   //            MSG_DONTWAIT);
 
-  err = recv(client_info->connfd, buf, request.status_header_size,
+  err = recv(client_info->connfd, buf, request.status_header_size + content_length,
              MSG_DONTWAIT);
   if (err < 0)
   {
     printf("coulnd't shift buffer 2: %s\n", strerror(errno));
   }
 
+
   if (strcmp(request.http_method, "POST") == 0)
   {
-    request.body = (char *)malloc(content_length + 1);
-    if (request.body == NULL)
+      printf("about ot print buf%s\n");
+    printf("%s\n", buf);
+    err = send(client_info->connfd, buf, strlen(buf), MSG_NOSIGNAL);
+    if (err < 0)
     {
-      serialize_http_response_wrapper((size_t *) &len, INTERNAL_SERVER_ERROR);
-      return -1;
+      printf("could not send HTTP response: %s\n", strerror(errno));
     }
-
-    size_t read_ctr = 0;
-    while (read_ctr < content_length)
-    {
-      int recv_b = recv(client_info->connfd, request.body + read_ctr, content_length - read_ctr, 0);
-      if (recv_b > 0)
-      {
-        read_ctr += recv_b;
-      } else {
-          serialize_http_response_wrapper((size_t *) &len, INTERNAL_SERVER_ERROR);
-          return -1;
-      }
-    }
-    request.body[content_length] = '\0';
-    request.body_length = content_length + 1;
-  }
-;
-  {
+  } else {
+  { 
 
     char buffer[BUF_SIZE];
     size_t size = 0;
@@ -241,6 +228,7 @@ inline int client_update(struct client_info *client_info, char *folder)
     }
   }
 
+  }
   // if((parse_err == TEST_ERROR_PARSE_FAILED) || wrong_version)
   //   return 1;
   // check for connection: close
@@ -369,7 +357,7 @@ int main(int argc, char *argv[])
       }
       if ((revents & POLLIN) == 0)
         continue;
-      
+
       printf("REVENTS %d\n", revents);
       struct client_info *client_info = &(client_info_list[i]);
       int keep = client_update(client_info, www_folder);
