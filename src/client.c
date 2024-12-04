@@ -84,8 +84,8 @@ int new_connection() {
 
 /* assumes strlen(path) < 4096 & starts with '/' */
 /* makes a new connection if possible & all current conns have something instream */
-int req_resource(const char *path) {
-  printf("called req_resource() with path %s, strlen %d\n", path, strlen(path));
+int req_resource(const char *path, size_t len) {
+  printf("called req_resource() with path %s, len %d\n", path, (int)len);
   /* check if resource already requested */
   for(uint32_t i = 0; i < client_data.n_resources; i++) {
     if(strcmp(client_data.resources[i], path) == 0)
@@ -94,8 +94,8 @@ int req_resource(const char *path) {
   /* add the resource to the resource list */
   client_data.resources = realloc(client_data.resources,
       (client_data.n_resources + 1)*sizeof(char*));
-  char *path_str = malloc(sizeof(char*)*strlen(path));
-  memcpy(path_str, path, strlen(path));
+  char *path_str = malloc(sizeof(char*)*len);
+  memcpy(path_str, path, len);
   client_data.resources[client_data.n_resources++] = path_str;
 
   /* find the connection with the least instream */
@@ -131,16 +131,16 @@ int req_resource(const char *path) {
     1,
     0
   };
-  strcpy(request.http_uri + 1, path);
+  memcpy(request.http_uri + 1, path, len);
 
   char buf[MAX_HEADER_SIZE];
-  size_t size;
+  size_t size = 0;
   int err = serialize_http_request(buf, &size, &request);
   if(err != TEST_ERROR_NONE) {
     printf("error %d serializing request\n", err);
     return -1;
   }
-  printf("CLIENT RSRC REQ: \n%s\n", buf);
+  printf("CLIENT RSRC REQ len %d: \n%s\n", size, buf);
   err = send(client_data.connections[conn_i].fd, buf, size, 0);
   if(err < 0) {
     printf("error sending msg\n");
@@ -174,7 +174,8 @@ int main(int argc, char *argv[]) {
   }
 
   /* request the dependency (should go in connection 0) */
-  int requested = req_resource("/dependency.csv");
+  const char *dep_str = "/dependency.csv";
+  int requested = req_resource(dep_str, strlen(dep_str) + 1);
   printf("requested? %d\n", requested);
   int sockfd = client_data.connections[0].fd;
   printf("sockfd is %d\n", sockfd);
@@ -186,6 +187,7 @@ int main(int argc, char *argv[]) {
     printf("read of zero\n");
     exit(1);
   }
+  // sleep(10);
   // char *start_body = strstr(buf, "index.html");
   // printf("body is: %s\n", start_body + 4);
   // printf("chars are: %d,%d,%d,%d,%d\n", (int)*(start_body - 5), (int)*(start_body - 4), (int)*(start_body - 3), (int)*(start_body - 2), (int)*(start_body - 1));
@@ -209,7 +211,7 @@ int main(int argc, char *argv[]) {
     while(1) {
       *com = '\0';
       printf("\tFILE: %s\n", file);
-      req_resource(file);
+      req_resource(file, (int)(com - file) + 3);
       file = com + 1;
       if(file >= next_line)
         break;

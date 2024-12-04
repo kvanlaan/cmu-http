@@ -178,7 +178,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         free(resource_file_content);
         free(resource_path);
         free(content_length_str);
-        printf("serialized resp %s\n", response);
+        // printf("serialized resp %s\n", response);
         return response;
 }
 

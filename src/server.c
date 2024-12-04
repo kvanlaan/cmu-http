@@ -146,6 +146,7 @@ inline int client_update(struct client_info *client_info, char *folder)
   if (parse_err == TEST_ERROR_PARSE_PARTIAL)
   {
     printf("parsing partial'ed %d bytes\n", len);
+    buf[len] = '\0';
     return 1;
   }
 
@@ -194,8 +195,6 @@ inline int client_update(struct client_info *client_info, char *folder)
 
   if (strcmp(request.http_method, "POST") == 0)
   {
-      printf("about ot print buf%s\n");
-    printf("%s\n", buf);
     err = send(client_info->connfd, buf, strlen(buf), MSG_NOSIGNAL);
     if (err < 0)
     {
@@ -208,10 +207,10 @@ inline int client_update(struct client_info *client_info, char *folder)
     size_t size = 0;
     serialize_http_request(buffer, &size, &request);
     buffer[size] = '\0';
-    printf("accsessed buf end\n");
-    printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
-    printf("status_header_size is %d\n", request.status_header_size);
-    printf("buffer size is %d\n", size);
+    // printf("accsessed buf end\n");
+    // printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
+    // printf("status_header_size is %d\n", request.status_header_size);
+    // printf("buffer size is %d\n", size);
   }
 
   if (!is_req_invalid)
