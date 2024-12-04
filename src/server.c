@@ -220,7 +220,10 @@ inline int client_update(struct client_info *client_info, char *folder)
   if (!is_req_invalid)
   {
     size_t resp_len;
+
     char *resp = process_http_request(&request, &resp_len, folder);
+
+    printf("about to send... %d\n", resp_len);
     err = send(client_info->connfd, resp, resp_len, MSG_NOSIGNAL);
     if (err < 0)
     {

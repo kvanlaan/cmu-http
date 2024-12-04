@@ -132,6 +132,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         if (access(resource_path, F_OK) != 0)
         {
             printf("RESOURCE NOT FOUND: %s\n", resource_path);
+            free(resource_path);
             return serialize_http_response_wrapper(len, NOT_FOUND);
         }
 
@@ -151,6 +152,8 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         FILE *resource_file = fopen(resource_path, "rb");
         if (resource_file == NULL)
         {
+            printf("File empty\n");
+            free(resource_path);
             return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
         }
 
@@ -161,6 +164,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         {
             fclose(resource_file);
             free(resource_path);
+            printf("Error mallocing resource_file_content\n");
             return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
         }
 
@@ -169,11 +173,12 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         char *content_length_str = size_to_string(resource_file_size);
         char *response;
         serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, resource_file_size, resource_file_content);
-
+        
         fclose(resource_file);
         free(resource_file_content);
         free(resource_path);
         free(content_length_str);
+        printf("serialized resp %s\n", response);
         return response;
 }
 
