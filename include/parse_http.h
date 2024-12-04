@@ -24,6 +24,7 @@
 
 #define SUCCESS 0
 #define HTTP_SIZE 4096
+#define MAX_HEADER_SIZE 8192  // added by Raphael
 
 /* HTTP Methods */
 extern const char *HEAD, *GET, *POST;

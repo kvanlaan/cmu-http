@@ -119,9 +119,6 @@ int new_connection(int sockfd, struct pollfd *poll_list,
   return 1;
 }
 
-// struct {
-//   char *folder;
-// } server_info;
 
 /* should be called when new data available in client-socket, returns if we
   should keep the connection alive */
