@@ -23,6 +23,47 @@
 
 #define BUF_SIZE 999999
 
+int make_request(char *buf, int sockfd, char *filename)
+{
+  // to-do set filename_param to '/' + filename
+
+  Request request = {
+      "1.1",
+      "GET",
+      "/dependency.csv",
+      "127.0.0.1",
+      NULL,
+      0,    // header_count
+      0,    // allocated_headers
+      0,    // status_header_size
+      NULL, ///  char *body;
+      1,    // valid
+      0     //
+  };
+
+  snprintf(request.http_uri, sizeof(request.http_uri), "/%s", filename);
+
+  size_t size;
+  int err = serialize_http_request(buf, &size, &request);
+  if (err != TEST_ERROR_NONE)
+  {
+    printf("error serializing request\n");
+    return -1;
+  }
+  buf[size] = '\0';
+
+  err = send(sockfd, buf, size, 0);
+  if (err < 0)
+  {
+    printf("error sending msg\n");
+    return -1;
+  }
+
+  int len = read(sockfd, buf, BUF_SIZE);
+  printf("len received%d\n", len);
+
+  return len;
+}
 int main(int argc, char *argv[])
 {
   /* Validate and parse args */
@@ -57,44 +98,28 @@ int main(int argc, char *argv[])
   }
 
   /* CP1: Send out a HTTP request, waiting for the response */
-  Request request = {
-      "1.1",
-      "GET",
-      "/dependency.csv",
-      "127.0.0.1",
-      NULL,
-      0,    // header_count
-      0,    // allocated_headers
-      0,    // status_header_size
-      NULL, ///  char *body;
-      1,    // valid
-      0     //
-  };
   char buf[BUF_SIZE];
-  size_t size;
-  int err = serialize_http_request(buf, &size, &request);
-  if (err != TEST_ERROR_NONE)
-  {
-    printf("error serializing request\n");
-  }
-  buf[size] = '\0';
-  for (int i = 0; i < 10; i++)
-  {
-    printf("sending request %d:\n%s\n", i + 1, buf);
-    err = send(sockfd, buf, size, 0);
-    if (err < 0)
-    {
-      printf("error sending msg\n");
-    }
-  }
-
-  int len = read(sockfd, buf, BUF_SIZE);
+  int len = make_request(buf, sockfd, "dependency.csv");
   if (len > 0)
   {
-    printf("Dependency.csv read: %s\n", buf);
+    buf[len] = '\0';
+    char *start_body = strstr(buf, "index.html");
+    char *dep_entry = strtok(start_body, "\r\n");
+    printf("FIX THIS extract loop");
+    while (dep_entry != NULL)
+    {
+      printf("dep_entry\n %s\n", dep_entry);
+      char *filename = strtok(NULL, ",");
+      printf("filename extract\n %s\n", filename);
+      printf("making request....\n");
+      char temp_buf[BUF_SIZE];
+      make_request(temp_buf, sockfd, filename);
+      dep_entry = strtok(NULL, "\r\n");
+      printf("dep_entry\n %s\n", dep_entry);
+    }
   }
   else
   {
-    perror("ERR occured from server");
+    perror("ERR occured from server\n");
   }
 }
