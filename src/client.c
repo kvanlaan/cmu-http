@@ -85,7 +85,7 @@ int new_connection() {
 /* assumes strlen(path) < 4096 & starts with '/' */
 /* makes a new connection if possible & all current conns have something instream */
 int req_resource(const char *path) {
-  printf("called req_resource() with path %s\n", path);
+  printf("called req_resource() with path %s, strlen %d\n", path, strlen(path));
   /* check if resource already requested */
   for(uint32_t i = 0; i < client_data.n_resources; i++) {
     if(strcmp(client_data.resources[i], path) == 0)
