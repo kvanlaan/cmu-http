@@ -25,7 +25,6 @@
 #define BUF_SIZE 999999
 #define MAX_PARALLEL_CONNS 10
 
-
 static struct {
   char server_ip[40];
 
@@ -175,10 +174,24 @@ int main(int argc, char *argv[]) {
   int len = read(sockfd, buf, BUF_SIZE);
   if (len > 0)
   {
-    printf("Dependency.csv read: %s\n", buf);
+    buf[len] = '\0';
+    char *start_body = strstr(buf, "index.html");
+    char *dep_entry = strtok(start_body, "\r\n");
+    printf("FIX THIS extract loop");
+    while (dep_entry != NULL)
+    {
+      printf("dep_entry\n %s\n", dep_entry);
+      char *filename = strtok(NULL, ",");
+      printf("filename extract\n %s\n", filename);
+      printf("making request....\n");
+      char temp_buf[BUF_SIZE];
+      req_resource(temp_buf, sockfd, filename);
+      dep_entry = strtok(NULL, "\r\n");
+      printf("dep_entry\n %s\n", dep_entry);
+    }
   }
   else
   {
-    perror("ERR occured from server");
+    perror("ERR occured from server\n");
   }
 }
