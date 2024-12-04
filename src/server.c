@@ -33,7 +33,7 @@
 
 #include <limits.h>
 
-#define BUF_SIZE 9999
+#define BUF_SIZE 999999
 // Closes a client's connection if they have not sent a valid request within
 // CONNECTION_TIMEOUT seconds.
 #define CONNECTION_TIMEOUT 50
