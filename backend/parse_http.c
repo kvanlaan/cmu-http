@@ -178,7 +178,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         fclose(resource_file);
         free(resource_file_content);
         free(resource_path);
-
+        free(content_length_str);
         return response;
     }
     else if (strcmp(method, "POST") == 0)
@@ -200,6 +200,7 @@ char *process_http_request(Request *request, size_t *len, char *base_folder)
         char *response;
         serialize_http_response(&response, len, OK, NULL, content_length_str, NULL, request->body_length, post_content);
         free(content_length_str);
+        free(request->body);
         return response;
     }
 }

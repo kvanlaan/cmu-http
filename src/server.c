@@ -45,6 +45,10 @@
 
 #define DEFAULT_TIMEOUT 3000
 
+#ifndef TCP_USER_TIMEOUT
+#define TCP_USER_TIMEOUT 18
+#endif
+
 struct client_info
 {
   struct sockaddr_in addr; // Socket address
@@ -168,6 +172,7 @@ inline int client_update(struct client_info *client_info, char *folder)
     }
   }
   size_t content_length = 0;
+  
   for (int i = 0; i < request.header_count; i++)
   {
     if ((strcasecmp(request.headers[i].header_name, "Content-Length") == 0) || (strcasecmp(request.headers[i].header_name, "content-length") == 0))
@@ -177,7 +182,7 @@ inline int client_update(struct client_info *client_info, char *folder)
     }
   }
   // shift the socket recv buffer
-  printf("content length %d\n", request.status_header_size + content_length);
+  //printf("content length %d\n", request.status_header_size + content_length);
   // err = recv(client_info->connfd, buf, request.status_header_size + content_length,
   //            MSG_DONTWAIT);
 
@@ -193,7 +198,8 @@ inline int client_update(struct client_info *client_info, char *folder)
     request.body = (char *)malloc(content_length + 1);
     if (request.body == NULL)
     {
-      return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+      serialize_http_response_wrapper((size_t *) &len, INTERNAL_SERVER_ERROR);
+      return -1;
     }
 
     size_t read_ctr = 0;
@@ -204,21 +210,21 @@ inline int client_update(struct client_info *client_info, char *folder)
       {
         read_ctr += recv_b;
       } else {
-          return serialize_http_response_wrapper(len, INTERNAL_SERVER_ERROR);
+          serialize_http_response_wrapper((size_t *) &len, INTERNAL_SERVER_ERROR);
+          return -1;
       }
     }
     request.body[content_length] = '\0';
     request.body_length = content_length + 1;
   }
-
+;
   {
-    printf("READ BUF TEST %s\n", buf);
 
-    printf("READ BODY TEST %s\n", request.body);
     char buffer[BUF_SIZE];
-    size_t size;
+    size_t size = 0;
     serialize_http_request(buffer, &size, &request);
     buffer[size] = '\0';
+    printf("accsessed buf end\n");
     printf("received HTTP request:\n%s, read in %d bytes\n", buffer, len);
     printf("status_header_size is %d\n", request.status_header_size);
     printf("buffer size is %d\n", size);
@@ -227,7 +233,6 @@ inline int client_update(struct client_info *client_info, char *folder)
   if (!is_req_invalid)
   {
     size_t resp_len;
-    printf("about to process\n");
     char *resp = process_http_request(&request, &resp_len, folder);
     err = send(client_info->connfd, resp, resp_len, MSG_NOSIGNAL);
     if (err < 0)
@@ -364,6 +369,8 @@ int main(int argc, char *argv[])
       }
       if ((revents & POLLIN) == 0)
         continue;
+      
+      printf("REVENTS %d\n", revents);
       struct client_info *client_info = &(client_info_list[i]);
       int keep = client_update(client_info, www_folder);
       if (!keep)

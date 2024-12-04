@@ -118,4 +118,7 @@ test_error_code_t serialize_http_response(char **msg, size_t *len,
     char *last_modified, size_t body_len, char *body);
 
 char *process_http_request(Request *request, size_t *len, char *base_folder);
+
+
+char *serialize_http_response_wrapper(size_t *len, const char *response_type);
 #endif
