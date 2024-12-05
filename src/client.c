@@ -45,7 +45,17 @@ static struct {
 } client_data;
 
 
-int new_connection() {
+static void free_client_data() {
+  for(uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
+    free(client_data.conn_info_list[i].resources);
+  for(uint32_t i = 0; i < client_data.n_resources; i++)
+    free(client_data.resources[i]);
+  free(client_data.resources);
+}
+
+
+static int new_connection() {
+  printf("new_connection() called!\n");  // note: this is merely debug stmnt
   uint32_t conn_i = 0;
   for(; (conn_i < MAX_PARALLEL_CONNS) && (client_data.connections[conn_i].fd != -1);
       conn_i++) {}
@@ -75,6 +85,8 @@ int new_connection() {
       return TEST_ERROR_HTTP_CONNECT_FAILED;
   }
 
+  printf("new connection created with sockfd %d!\n", sockfd);  // note: this is merely debug stmnt
+
   client_data.connections[conn_i].fd = sockfd;
   return conn_i;
 }
@@ -84,7 +96,7 @@ int new_connection() {
 
 /* assumes strlen(path) < 4096 & starts with '/' */
 /* makes a new connection if possible & all current conns have something instream */
-int req_resource(const char *path, size_t len) {
+static int req_resource(const char *path, size_t len) {
   printf("called req_resource() with path %s, len %d\n", path, (int)len);
   /* check if resource already requested */
   for(uint32_t i = 0; i < client_data.n_resources; i++) {
@@ -96,7 +108,9 @@ int req_resource(const char *path, size_t len) {
       (client_data.n_resources + 1)*sizeof(char*));
   char *path_str = malloc(sizeof(char*)*len);
   memcpy(path_str, path, len);
-  client_data.resources[client_data.n_resources++] = path_str;
+  uint32_t rsrc_i = client_data.n_resources;
+  client_data.resources[rsrc_i] = path_str;
+  client_data.n_resources++;
 
   /* find the connection with the least instream */
   uint32_t min_instream = (uint32_t)-1;
@@ -146,6 +160,14 @@ int req_resource(const char *path, size_t len) {
     printf("error sending msg\n");
     return -1;
   }
+  
+  /* update the connection's pipeline log */
+  struct conn_info *conn_info = &(client_data.conn_info_list[conn_i]);
+  uint32_t n_instream = conn_info->n_instream;
+  conn_info->resources = realloc(conn_info->resources, n_instream + 1);
+  conn_info->resources[n_instream] = rsrc_i;
+  conn_info->n_instream++;
+
   return 1;
 }
 
@@ -174,7 +196,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* request the dependency (should go in connection 0) */
-  const char *dep_str = "/dependency.csv";
+  const char *dep_str = "dependency.csv";
   int requested = req_resource(dep_str, strlen(dep_str) + 1);
   printf("requested? %d\n", requested);
   int sockfd = client_data.connections[0].fd;
@@ -222,6 +244,8 @@ int main(int argc, char *argv[]) {
     line = next_line;
   }
   sleep(5);
+
+  free_client_data();
   return 0;
 }
 
