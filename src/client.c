@@ -19,55 +19,66 @@
 #include <test_error.h>
 #include <ports.h>
 #include <poll.h>
-
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define BUF_SIZE 999999
 #define MAX_PARALLEL_CONNS 10
-
-static struct {
+#define MAX_HEADER_SIZE 8192
+static struct
+{
   char server_ip[40];
 
-  uint32_t n_resources;  // # resources in request
-  char** resources;  // holds paths of all the resources being requested
-                     // if NULL at some index i, then no conn info should have
-                     // it instream, and it is available for a new resource;
+  uint32_t n_resources; // # resources in request
+  char **resources;     // holds paths of all the resources being requested
+                        // if NULL at some index i, then no conn info should have
+                        // it instream, and it is available for a new resource;
 
   struct pollfd connections[MAX_PARALLEL_CONNS];
-  struct conn_info {
+  struct conn_info
+  {
     // char path[4096];
     uint32_t n_instream;
-    uint32_t* resources;
+    uint32_t *resources;
     // in theory there might also be a timeout field here too
   } conn_info_list[MAX_PARALLEL_CONNS];
   // size_t conn_sizes[MAX_PARALLEL_CONNS];  // how many requests await in each?
-                           // note: can assume will be answered in-order
+  // note: can assume will be answered in-order
 } client_data;
 
-
-static void free_client_data() {
-  for(uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
+static void free_client_data()
+{
+  for (uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
     free(client_data.conn_info_list[i].resources);
-  for(uint32_t i = 0; i < client_data.n_resources; i++)
+  for (uint32_t i = 0; i < client_data.n_resources; i++)
     free(client_data.resources[i]);
   free(client_data.resources);
 }
 
-
-static int new_connection() {
-  printf("new_connection() called!\n");  // note: this is merely debug stmnt
+static int new_connection()
+{
+  printf("new_connection() called!\n"); // note: this is merely debug stmnt
   uint32_t conn_i = 0;
-  for(; (conn_i < MAX_PARALLEL_CONNS) && (client_data.connections[conn_i].fd != -1);
-      conn_i++) {}
-  if(conn_i == MAX_PARALLEL_CONNS) {
-    printf("cannot make new connection: amnt exceeded\n");  // note: this is merely debug stmnt
+  for (; (conn_i < MAX_PARALLEL_CONNS) && (client_data.connections[conn_i].fd != -1);
+       conn_i++)
+  {
+  }
+  if (conn_i == MAX_PARALLEL_CONNS)
+  {
+    printf("cannot make new connection: amnt exceeded\n"); // note: this is merely debug stmnt
     return MAX_PARALLEL_CONNS;
   }
 
   int sockfd;
   struct sockaddr_in sin;
-  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-      return TEST_ERROR_HTTP_CONNECT_FAILED;
+  if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+  {
+    return TEST_ERROR_HTTP_CONNECT_FAILED;
   }
 
   int optval = 1;
@@ -77,36 +88,42 @@ static int new_connection() {
   sin.sin_family = AF_INET;
   sin.sin_port = htons(HTTP_PORT);
   inet_pton(AF_INET, client_data.server_ip, &(sin.sin_addr));
-  
+
   fprintf(stderr, "Parsed IP address of the server: %X\n", htonl(sin.sin_addr.s_addr));
 
-  if(connect(sockfd, (struct sockaddr *)&sin, sizeof(sin)) < 0){
-      printf("error on connect\n");
-      return TEST_ERROR_HTTP_CONNECT_FAILED;
+  if (connect(sockfd, (struct sockaddr *)&sin, sizeof(sin)) < 0)
+  {
+    printf("error on connect\n");
+    return TEST_ERROR_HTTP_CONNECT_FAILED;
   }
 
-  printf("new connection created with sockfd %d!\n", sockfd);  // note: this is merely debug stmnt
+  printf("new connection created with sockfd %d!\n", sockfd); // note: this is merely debug stmnt
 
   client_data.connections[conn_i].fd = sockfd;
   return conn_i;
 }
 
-
-
-
 /* assumes strlen(path) < 4096 & starts with '/' */
 /* makes a new connection if possible & all current conns have something instream */
-static int req_resource(const char *path, size_t len) {
+static int req_resource(const char *path, size_t len)
+{
   printf("called req_resource() with path %s, len %d\n", path, (int)len);
   /* check if resource already requested */
-  for(uint32_t i = 0; i < client_data.n_resources; i++) {
-    if(strcmp(client_data.resources[i], path) == 0)
+  for (uint32_t i = 0; i < client_data.n_resources; i++)
+  {
+
+    if (strcmp(client_data.resources[i], path) == 0)
+    {
+      printf("resource already requested...\n");
       return 0;
+    }
   }
+
+  printf("about to manage some resources list%s\n");
   /* add the resource to the resource list */
   client_data.resources = realloc(client_data.resources,
-      (client_data.n_resources + 1)*sizeof(char*));
-  char *path_str = malloc(sizeof(char*)*len);
+                                  (client_data.n_resources + 1) * sizeof(char *));
+  char *path_str = malloc(sizeof(char *) * len);
   memcpy(path_str, path, len);
   uint32_t rsrc_i = client_data.n_resources;
   client_data.resources[rsrc_i] = path_str;
@@ -115,81 +132,172 @@ static int req_resource(const char *path, size_t len) {
   /* find the connection with the least instream */
   uint32_t min_instream = (uint32_t)-1;
   uint32_t conn_i = MAX_PARALLEL_CONNS;
-  for(uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++) {
-    if(client_data.connections[i].fd == -1) {
+  for (uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
+  {
+    if (client_data.connections[i].fd == -1)
+    {
       continue;
     }
     uint32_t n_instream_i = client_data.conn_info_list[i].n_instream;
-    if(n_instream_i < min_instream) {
+    if (n_instream_i < min_instream)
+    {
       min_instream = n_instream_i;
       conn_i = i;
     }
   }
-  if(min_instream > 0) {
+  if (min_instream > 0)
+  {
     uint32_t new_conn_i = new_connection();
-    if(new_conn_i < MAX_PARALLEL_CONNS) {
+    if (new_conn_i < MAX_PARALLEL_CONNS)
+    {
       conn_i = new_conn_i;
     }
   }
 
   Request request = {
-    "1.1",
-    "GET",
-    "/",
-    "127.0.0.1",
-    NULL,
-    0,
-    0,
-    0,
-    NULL,
-    1,
-    0
-  };
+      "1.1",
+      "GET",
+      "/",
+      "127.0.0.1",
+      NULL,
+      0,
+      0,
+      0,
+      NULL,
+      1,
+      0};
   memcpy(request.http_uri + 1, path, len);
 
   char buf[MAX_HEADER_SIZE];
   size_t size = 0;
   int err = serialize_http_request(buf, &size, &request);
-  if(err != TEST_ERROR_NONE) {
+  if (err != TEST_ERROR_NONE)
+  {
     printf("error %d serializing request\n", err);
     return -1;
   }
   printf("CLIENT RSRC REQ len %d: \n%s\n", size, buf);
   err = send(client_data.connections[conn_i].fd, buf, size, 0);
-  if(err < 0) {
+  if (err < 0)
+  {
     printf("error sending msg\n");
     return -1;
   }
-  
+
   /* update the connection's pipeline log */
   struct conn_info *conn_info = &(client_data.conn_info_list[conn_i]);
   uint32_t n_instream = conn_info->n_instream;
   conn_info->resources = realloc(conn_info->resources, n_instream + 1);
   conn_info->resources[n_instream] = rsrc_i;
   conn_info->n_instream++;
-
+  if (strcmp("dependency.csv", path) != 0)
+  {
+    make_file_from_buf(client_data.connections[conn_i].fd, path);
+  }
   return 1;
 }
 
+int make_file_from_buf(int sockfd, char *filename)
+{
+  char file_writ_buf[BUF_SIZE];
+  int len = read(sockfd, file_writ_buf, BUF_SIZE);
 
+  // 1. Construct filepath with './www/' prepended
+  char *dir = "./www/";
+  size_t file_path_len = strlen(dir) + strlen(filename) + 1;
+  char *full_file_path = malloc(file_path_len);
 
-int main(int argc, char *argv[]) {
-  /* Validate and parse args */
-  if (argc != 2) {
-      fprintf(stderr, "usage: %s <server-ip>\n", argv[0]);
-      return EXIT_FAILURE;
+  snprintf(full_file_path, file_path_len, "%s%s", dir, filename);
+
+  // Check read
+  if (len < 0)
+  {
+    printf("read failed\n");
+    free(full_file_path);
+    return -1;
   }
-  
+  if (len == 0)
+  {
+    printf("read of zero\n");
+    free(full_file_path);
+    return -1;
+  }
+
+  if (len < BUF_SIZE)
+  {
+    file_writ_buf[len] = '\0';
+  }
+  else
+  {
+    file_writ_buf[BUF_SIZE - 1] = '\0';
+  }
+
+  // 2. Check if file already exists
+  struct stat st;
+  if (stat(full_file_path, &st) == 0)
+  {
+    printf("File already created: %s\n", full_file_path);
+    free(full_file_path);
+    return 0;
+  }
+
+  // make/check dir good
+  if (mkdir("./www", 0755) == -1)
+  {
+    if (errno != EEXIST)
+    {
+      printf("Err creating ./www directory\n");
+      free(full_file_path);
+      return -1;
+    }
+  }
+
+  // 3. If not, create the file
+  int file_fd = open(full_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (file_fd < 0)
+  {
+    printf("err creating file\n");
+    free(full_file_path);
+    return -1;
+  }
+
+  // 4. Write the buffer content to the file
+  int written = write(file_fd, file_writ_buf, len);
+  if (written < 0)
+  {
+    printf("Error occurred in writing file\n");
+    close(file_fd);
+    free(full_file_path);
+    return -1;
+  }
+
+  close(file_fd);
+  free(full_file_path);
+
+  return 0;
+}
+
+int main(int argc, char *argv[])
+{
+  /* Validate and parse args */
+  if (argc != 2)
+  {
+    fprintf(stderr, "usage: %s <server-ip>\n", argv[0]);
+    return EXIT_FAILURE;
+  }
+
   char *ip = argv[1];
 
   /* initialize client_data stuff */
   strcpy(client_data.server_ip, ip);
   client_data.n_resources = 0;
-  for(uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++) {
+  for (uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
+  {
     client_data.conn_info_list[i].n_instream = 0;
     client_data.conn_info_list[i].resources = NULL;
   }
-  for(uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++) {
+  for (uint32_t i = 0; i < MAX_PARALLEL_CONNS; i++)
+  {
     client_data.connections[i].fd = -1;
     client_data.connections[i].events = POLLIN | POLLHUP;
     client_data.connections[i].revents = 0;
@@ -205,7 +313,9 @@ int main(int argc, char *argv[]) {
   char buf[BUF_SIZE];
   int len = read(sockfd, buf, BUF_SIZE);
   printf("read dependency: %s\n", buf);
-  if(len == 0) { 
+
+  if (len == 0)
+  {
     printf("read of zero\n");
     exit(1);
   }
@@ -221,24 +331,37 @@ int main(int argc, char *argv[]) {
   while (line++ < body_end - 1)
   {
     char *next_line = strstr(line, "\n");
-    if(next_line == NULL)
+    if (next_line == NULL)
       next_line = body_end;
-    if(next_line != NULL)
+    if (next_line != NULL)
       *next_line = '\0';
     printf("LINE:\n", (int)(next_line - line), line);
     char *file = line;
     char *com = strstr(line, ",");
-    if(com == NULL)
+    if (com == NULL)
       com = next_line;
-    while(1) {
+    while (1)
+    {
       *com = '\0';
       printf("\tFILE: %s\n", file);
-      req_resource(file, (int)(com - file) + 3);
+      int req_res = req_resource(file, (int)(com - file) + 3);
+      // what to do if file not ready.....
+      // if (req_res > 0)
+      // {
+      //   int res = make_file_from_buf(sockfd, file);
+
+      //   if (res < 0)
+      //   {
+      //     printf("error in the dependency tree \n");
+      //   }
+      // }
       file = com + 1;
-      if(file >= next_line)
+      if (file >= next_line)
+      {
         break;
+      }
       com = strstr(file, ",");
-      if(com == NULL)
+      if (com == NULL)
         com = next_line;
     }
     line = next_line;
@@ -248,4 +371,3 @@ int main(int argc, char *argv[]) {
   free_client_data();
   return 0;
 }
-
